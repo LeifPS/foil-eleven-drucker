@@ -1408,6 +1408,7 @@ function proxyImg(url){
   return 'https://wsrv.nl/?url=' + encodeURIComponent(url) + '&w=420&h=396&fit=cover&a=attention&err=404';
 }
 function proxyIcon(url){
+  if(/football-logos\.cc/.test(url)) return url;
   return 'https://wsrv.nl/?url=' + encodeURIComponent(url) + '&err=404';
 }
 function initialsOf(name){
@@ -1447,8 +1448,8 @@ function cardEl(card, sizeClass){
   const leagueLogoUrl = resolveLeagueLogo(card);
   const natClubIcons = `<div class="nat-club-icons">
     ${flagCode ? `<img class="nc-flag" src="${proxyIcon('https://flagcdn.com/w40/'+flagCode+'.png')}" alt="" title="${card.nat}" loading="lazy" crossorigin="anonymous" onerror="this.style.display='none'">` : `<div class="nc-flag-mono" title="${card.nat||''}">${(card.nat||'?').slice(0,2).toUpperCase()}</div>`}
-    ${card.lg ? (leagueLogoUrl ? `<img class="nc-league" src="${proxyIcon(leagueLogoUrl)}" alt="" title="${card.lg}" loading="lazy" crossorigin="anonymous" onerror="this.style.display='none'">` : `<div class="nc-league-mono" title="${card.lg}">${initialsOf2(card.lg)}</div>`) : ''}
-    ${clubLogoUrl ? `<img class="nc-club" src="${proxyIcon(clubLogoUrl)}" alt="" title="${card.club}" loading="lazy" crossorigin="anonymous" onerror="this.style.display='none'">` : (card.club ? `<div class="nc-club-mono" title="${card.club}">${initialsOf2(card.club)}</div>` : '')}
+    ${card.lg ? (leagueLogoUrl ? `<img class="nc-league" src="${proxyIcon(leagueLogoUrl)}" alt="" title="${card.lg}" loading="lazy" referrerpolicy="no-referrer" onerror="this.style.display='none'">` : `<div class="nc-league-mono" title="${card.lg}">${initialsOf2(card.lg)}</div>`) : ''}
+    ${clubLogoUrl ? `<img class="nc-club" src="${proxyIcon(clubLogoUrl)}" alt="" title="${card.club}" loading="lazy" referrerpolicy="no-referrer" onerror="this.style.display='none'">` : (card.club ? `<div class="nc-club-mono" title="${card.club}">${initialsOf2(card.club)}</div>` : '')}
   </div>`;
   const bodyInner = `<div class="name${nameClass}">${card.n}</div>
        ${natClubIcons}
