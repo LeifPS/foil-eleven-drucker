@@ -90,6 +90,8 @@ input,select{font-family:'Inter',sans-serif;}
   border:1px solid var(--acc);
   box-shadow:0 10px 24px rgba(0,0,0,.5), 0 0 0 1px rgba(255,255,255,.02) inset, 0 0 22px -6px var(--acc);
   overflow:hidden;isolation:isolate;
+  color:var(--chalk); /* base cards' .name relies on this inheriting from html/body,
+    which isn't present when the card is exported/printed in isolation */
 }
 .pcard::before{
   content:"";position:absolute;inset:0;z-index:4;pointer-events:none;
