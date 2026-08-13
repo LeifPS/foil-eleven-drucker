@@ -1475,25 +1475,15 @@ async function getEmbeddedFontCSS(){
   _fontCssCache = css;
   return css;
 }
-async function inlineImages(node){
-  const imgs = node.querySelectorAll('img');
-  const failed = [];
-  await Promise.all([...imgs].map(async img=>{
-    const src = img.getAttribute('src');
-    if(!src) return;
-    const abs = new URL(src, location.href).href;
-    const dataUri = await toDataURI(abs);
-    if(dataUri) img.setAttribute('src', dataUri);
-    else { failed.push(abs); img.removeAttribute('src'); }
-  }));
-  if(failed.length) console.warn('inlineImages: failed to embed', failed);
-  return failed;
-}
-async function cardToCanvas(el, scale, fontCSS){
-  const w = el.offsetWidth, h = el.offsetHeight;
-  const clone = el.cloneNode(true);
-  const failedImages = await inlineImages(clone);
-  const cardCSS = [...document.querySelectorAll('style')].map(s=>s.textContent).join('\n');
+const TRANSPARENT_PX = 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBTAA7';
+// Raster <img> elements embedded inside a data-URI SVG's foreignObject have
+// proven unreliable to actually paint on mobile Safari (the data loads fine,
+// nothing errors, they just don't show up) - every other CSS feature (text,
+// gradients, borders) renders correctly through this pipeline, only images
+// don't. So images are composited directly onto the canvas via plain
+// Image()+drawImage() instead - the same loading path the live app already
+// uses successfully everywhere - rather than embedded in the SVG.
+async function svgToImage(clone, w, h, fontCSS, cardCSS){
   const wrap = document.createElement('div');
   wrap.setAttribute('xmlns', 'http://www.w3.org/1999/xhtml');
   wrap.style.cssText = `width:${w}px;height:${h}px;`;
@@ -1508,15 +1498,125 @@ async function cardToCanvas(el, scale, fontCSS){
     im.onload = ()=>res(im);
     im.onerror = rej;
     im.src = dataUrl;
+    setTimeout(()=>rej(new Error('svgToImage timeout')), 10000);
   });
   // onload can fire before a large/complex SVG data URI is fully decoded and
   // ready for drawImage (seen on some mobile browsers on the first render) -
   // decode() explicitly waits for that, avoiding a blank/partial capture.
   if(img.decode) await img.decode().catch(()=>{});
+  return img;
+}
+async function loadImage(url){
+  if(!url) return null;
+  try{
+    const img = new Image();
+    img.crossOrigin = 'anonymous';
+    const p = new Promise((res,rej)=>{ img.onload = res; img.onerror = rej; });
+    img.src = url;
+    const timeout = new Promise((_,rej)=>setTimeout(()=>rej(new Error('timeout')), 10000));
+    await Promise.race([p, timeout]);
+    if(img.decode) await img.decode().catch(()=>{});
+    return img;
+  }catch(e){ return null; }
+}
+function drawCover(ctx, img, dx, dy, dw, dh, posX, posY){
+  const ar = img.naturalWidth/img.naturalHeight, br = dw/dh;
+  let sx,sy,sw,sh;
+  if(ar > br){ sh = img.naturalHeight; sw = sh*br; sy = 0; sx = (img.naturalWidth-sw)*posX; }
+  else { sw = img.naturalWidth; sh = sw/br; sx = 0; sy = (img.naturalHeight-sh)*posY; }
+  ctx.drawImage(img, sx, sy, sw, sh, dx, dy, dw, dh);
+}
+function getIconGeometry(el){
+  const cardRect = el.getBoundingClientRect();
+  const rel = r => ({x:r.left-cardRect.left, y:r.top-cardRect.top, w:r.width, h:r.height});
+  const out = {};
+  const photo = el.querySelector('.face-photo');
+  if(photo) out.photo = {url: photo.getAttribute('src'), rect: rel(el.querySelector('.photo-frame').getBoundingClientRect())};
+  ['nc-flag','nc-league','nc-club'].forEach(cls=>{
+    const iconEl = el.querySelector('.'+cls);
+    if(iconEl) out[cls] = {url: iconEl.getAttribute('src'), rect: rel(iconEl.getBoundingClientRect())};
+  });
+  return out;
+}
+async function cardToCanvas(el, scale, fontCSS){
+  const w = el.offsetWidth, h = el.offsetHeight;
+  const geo = getIconGeometry(el);
+  const cardCSS = [...document.querySelectorAll('style')].map(s=>s.textContent).join('\n');
+
+  // Background pass: everything except the photo-frame's contents, the top
+  // overlay (OV/position), the variant badge, and card-body (name/stats/
+  // flag/club/league) - i.e. just the card shell, pattern layer, and border.
+  const bgClone = el.cloneNode(true);
+  bgClone.querySelectorAll('.face-photo, .avatar, .photo-tint, .top, .variant-badge, .card-body').forEach(n=>n.style.visibility='hidden');
+
+  // Foreground pass: the inverse - card's own background/pattern suppressed
+  // (so it doesn't double-draw over the photo composited between the two
+  // passes), photo itself blanked (composited separately), everything else
+  // (tint, top, badge, card-body) rendered normally with a transparent
+  // background so only those elements show through.
+  const fgClone = el.cloneNode(true);
+  fgClone.style.background = 'none';
+  fgClone.style.border = 'none';
+  fgClone.style.boxShadow = 'none';
+  fgClone.querySelectorAll('.pattern-layer, .face-photo, .avatar').forEach(n=>n.style.visibility='hidden');
+  fgClone.querySelectorAll('.nc-flag, .nc-league, .nc-club').forEach(n=>n.setAttribute('src', TRANSPARENT_PX));
+
+  // Every slow/unreliable resource (2 SVG rasterizations + up to 4 images,
+  // each with its own worst-case timeout) is kicked off in parallel instead
+  // of sequentially, so the total wait is bounded by the single slowest one
+  // instead of their sum.
+  const iconClasses = ['nc-flag','nc-league','nc-club'];
+  const [bgImg, fgImg, photoImg, ...iconImgs] = await Promise.all([
+    svgToImage(bgClone, w, h, fontCSS, cardCSS),
+    svgToImage(fgClone, w, h, fontCSS, cardCSS),
+    geo.photo ? loadImage(geo.photo.url) : Promise.resolve(null),
+    ...iconClasses.map(cls => geo[cls] ? loadImage(geo[cls].url) : Promise.resolve(null)),
+  ]);
+
   const canvas = document.createElement('canvas');
   canvas.width = w*scale; canvas.height = h*scale;
   const ctx = canvas.getContext('2d');
-  ctx.drawImage(img, 0, 0, w*scale, h*scale);
+  ctx.drawImage(bgImg, 0, 0, w*scale, h*scale);
+
+  const failedImages = [];
+  if(geo.photo){
+    if(photoImg){
+      const r = geo.photo.rect;
+      const dx=r.x*scale, dy=r.y*scale, dw=r.w*scale, dh=r.h*scale;
+      const off = document.createElement('canvas');
+      off.width = dw; off.height = dh;
+      const octx = off.getContext('2d');
+      drawCover(octx, photoImg, 0, 0, dw, dh, 0.5, 0.22);
+      // bottom fade-out mask (mask-image:linear-gradient black 62%->transparent 96%)
+      octx.globalCompositeOperation = 'destination-in';
+      const maskGrad = octx.createLinearGradient(0,0,0,dh);
+      maskGrad.addColorStop(0.62, 'rgba(0,0,0,1)');
+      maskGrad.addColorStop(0.96, 'rgba(0,0,0,0)');
+      octx.fillStyle = maskGrad;
+      octx.fillRect(0,0,dw,dh);
+      ctx.drawImage(off, dx, dy);
+      // photo-tint (mix-blend-mode:overlay gradient using the card's accent color)
+      const acc = getComputedStyle(el).getPropertyValue('--acc').trim() || '#c9a24a';
+      ctx.save();
+      ctx.beginPath(); ctx.rect(dx, dy, dw, dh); ctx.clip();
+      ctx.globalCompositeOperation = 'overlay';
+      ctx.globalAlpha = 0.22;
+      const tintGrad = ctx.createLinearGradient(dx, dy, dx+dw*0.3, dy+dh);
+      tintGrad.addColorStop(0, acc);
+      tintGrad.addColorStop(0.45, 'transparent');
+      ctx.fillStyle = tintGrad;
+      ctx.fillRect(dx, dy, dw, dh);
+      ctx.restore();
+    } else failedImages.push(geo.photo.url);
+  }
+  ctx.drawImage(fgImg, 0, 0, w*scale, h*scale);
+  iconClasses.forEach((cls, i)=>{
+    if(!geo[cls]) return;
+    const img = iconImgs[i];
+    const r = geo[cls].rect;
+    if(img) ctx.drawImage(img, r.x*scale, r.y*scale, r.w*scale, r.h*scale);
+    else failedImages.push(geo[cls].url);
+  });
   canvas._failedImages = failedImages;
   return canvas;
 }
