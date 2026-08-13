@@ -702,7 +702,7 @@ html{ -webkit-print-color-adjust:exact; print-color-adjust:exact; color-adjust:e
     <button class="btn secondary" id="clear-selection">Auswahl leeren</button>
     <button class="btn" id="print-btn" disabled>🖨 Drucken</button>
     <button class="btn secondary" id="pdf-btn" disabled>📄 PDF herunterladen</button>
-    <span style="font-size:10.5px;color:var(--muted);max-width:170px;line-height:1.3;">🖨 nutzt den Browser-Druck. 📄 baut die PDF selbst (Desktop) bzw. öffnet den Druckdialog (Handy) — dort "Als PDF speichern" wählen.</span>
+    <span style="font-size:10.5px;color:var(--muted);max-width:170px;line-height:1.3;">🖨 nutzt den Browser-Druck. 📄 baut die PDF selbst und funktioniert überall gleich.</span>
   </div>
 </div>
 
@@ -1437,15 +1437,27 @@ function mainPos(pos){ return (pos||'').split(',')[0].trim(); }
 // CSS feature - custom properties, repeating-gradient, background-clip:text,
 // multi-layer backgrounds - renders identically to the live card) =====
 const _dataUriCache = new Map();
-async function toDataURI(url){
-  if(url.startsWith('data:')) return url;
-  if(_dataUriCache.has(url)) return _dataUriCache.get(url);
-  const p = fetch(url).then(r=>r.blob()).then(b=>new Promise((res,rej)=>{
+async function fetchAsDataURI(url){
+  const r = await fetch(url);
+  if(!r.ok) throw new Error('HTTP ' + r.status);
+  const b = await r.blob();
+  return new Promise((res,rej)=>{
     const fr = new FileReader();
     fr.onload = ()=>res(fr.result);
     fr.onerror = rej;
     fr.readAsDataURL(b);
-  })).catch(()=>null);
+  });
+}
+async function toDataURI(url){
+  if(url.startsWith('data:')) return url;
+  if(_dataUriCache.has(url)) return _dataUriCache.get(url);
+  // wsrv.nl (the image proxy used for CORS) has proven to intermittently
+  // 403 on otherwise-valid requests - retry once after a short delay before
+  // giving up, since a transient failure shouldn't cost the whole image.
+  const p = fetchAsDataURI(url).catch(async ()=>{
+    await new Promise(res=>setTimeout(res, 500));
+    return fetchAsDataURI(url).catch(()=>null);
+  });
   _dataUriCache.set(url, p);
   return p;
 }
@@ -1619,19 +1631,7 @@ function init(){
   document.getElementById('reset-filters').addEventListener('click', resetFilters);
   document.getElementById('clear-selection').addEventListener('click', ()=>{ selection.clear(); render(); });
   document.getElementById('print-btn').addEventListener('click', doPrint);
-  document.getElementById('pdf-btn').addEventListener('click', ()=>{
-    // The canvas/SVG-based PDF builder has proven unreliable on mobile Safari
-    // (missing images, layout glitches) - the browser's native print path
-    // renders the real DOM and is far more robust there. On mobile, route
-    // "PDF herunterladen" through the print dialog instead, where "In
-    // Dateien sichern" / "Save as PDF" produces an equally real PDF file.
-    if(isMobileDevice()){
-      alert('Auf dem Handy öffnet sich jetzt der Druckdialog. Wähle dort "In Dateien sichern" (iPhone/iPad) bzw. "Als PDF speichern" (Android), um die Karten als PDF zu speichern.');
-      doPrint();
-    } else {
-      generatePDF();
-    }
-  });
+  document.getElementById('pdf-btn').addEventListener('click', generatePDF);
 
   render();
 }
@@ -1742,6 +1742,14 @@ function renderPagination(totalPages){
 function isMobileDevice(){
   return /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
 }
+function unproxyUrl(url){
+  if(!url) return url;
+  try{
+    const u = new URL(url, location.href);
+    if(u.hostname === 'wsrv.nl' && u.searchParams.has('url')) return u.searchParams.get('url');
+  }catch(e){}
+  return url;
+}
 async function doPrint(){
   const printRoot = document.getElementById('print-root');
   const size = document.getElementById('size-select').value; // 'base' | 'mini' | 'pokemon'
@@ -1774,6 +1782,16 @@ async function doPrint(){
     });
     printRoot.appendChild(page);
   }
+
+  // The wsrv.nl image proxy (needed for canvas-based PDF export to get CORS
+  // headers) is a third-party service that's proven unreliable - it's blocked
+  // whole domains before and now intermittently 403s on player photos too.
+  // Printing doesn't need CORS at all (no canvas pixel access involved), so
+  // bypass the proxy entirely here and load straight from the source CDN.
+  printRoot.querySelectorAll('img').forEach(img=>{
+    const unproxied = unproxyUrl(img.getAttribute('src'));
+    if(unproxied !== img.getAttribute('src')) img.setAttribute('src', unproxied);
+  });
 
   // A fixed 150ms delay isn't nearly enough for photos/flags/logos to
   // actually finish downloading over a mobile connection, especially with
