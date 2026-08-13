@@ -579,6 +579,12 @@ html{ -webkit-print-color-adjust:exact; print-color-adjust:exact; color-adjust:e
     animation:none !important; transition:none !important;
     -webkit-print-color-adjust:exact !important; print-color-adjust:exact !important; color-adjust:exact !important;
   }
+  /* mix-blend-mode is known to render as solid black instead of falling back
+     gracefully in WebKit's print engine - disable it for print specifically. */
+  .pcard .photo-tint{ mix-blend-mode:normal !important; opacity:.14 !important; }
+  /* mask-image has separate WebKit print bugs - drop the bottom fade-out for
+     print rather than risk it rendering as solid black or fully hidden. */
+  .pcard .face-photo, .pcard .avatar{ -webkit-mask-image:none !important; mask-image:none !important; }
 }
 .print-page{
   display:grid; gap:8px; justify-content:center; align-content:start;
