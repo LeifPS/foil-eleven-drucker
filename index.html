@@ -675,7 +675,7 @@ html{ -webkit-print-color-adjust:exact; print-color-adjust:exact; color-adjust:e
     <button class="btn secondary" id="clear-selection">Auswahl leeren</button>
     <button class="btn" id="print-btn" disabled>🖨 Drucken</button>
     <button class="btn secondary" id="pdf-btn" disabled>📄 PDF herunterladen</button>
-    <span style="font-size:10.5px;color:var(--muted);max-width:170px;line-height:1.3;">🖨 nutzt den Browser-Druck (schnell, aber auf iPhone/iPad manchmal fehlerhaft). 📄 baut die PDF selbst und funktioniert überall gleich.</span>
+    <span style="font-size:10.5px;color:var(--muted);max-width:170px;line-height:1.3;">🖨 nutzt den Browser-Druck. 📄 baut die PDF selbst (Desktop) bzw. öffnet den Druckdialog (Handy) — dort "Als PDF speichern" wählen.</span>
   </div>
 </div>
 
@@ -1592,7 +1592,19 @@ function init(){
   document.getElementById('reset-filters').addEventListener('click', resetFilters);
   document.getElementById('clear-selection').addEventListener('click', ()=>{ selection.clear(); render(); });
   document.getElementById('print-btn').addEventListener('click', doPrint);
-  document.getElementById('pdf-btn').addEventListener('click', generatePDF);
+  document.getElementById('pdf-btn').addEventListener('click', ()=>{
+    // The canvas/SVG-based PDF builder has proven unreliable on mobile Safari
+    // (missing images, layout glitches) - the browser's native print path
+    // renders the real DOM and is far more robust there. On mobile, route
+    // "PDF herunterladen" through the print dialog instead, where "In
+    // Dateien sichern" / "Save as PDF" produces an equally real PDF file.
+    if(isMobileDevice()){
+      alert('Auf dem Handy öffnet sich jetzt der Druckdialog. Wähle dort "In Dateien sichern" (iPhone/iPad) bzw. "Als PDF speichern" (Android), um die Karten als PDF zu speichern.');
+      doPrint();
+    } else {
+      generatePDF();
+    }
+  });
 
   render();
 }
@@ -1700,6 +1712,9 @@ function renderPagination(totalPages){
   document.getElementById('pg-next').addEventListener('click', ()=>{ state.page++; render(); window.scrollTo({top:0,behavior:'smooth'}); });
 }
 
+function isMobileDevice(){
+  return /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+}
 function doPrint(){
   const printRoot = document.getElementById('print-root');
   const size = document.getElementById('size-select').value; // 'base' | 'mini' | 'pokemon'
