@@ -471,7 +471,7 @@ input,select{font-family:'Inter',sans-serif;}
 .pcard.xs .variant-badge{width:16px;height:16px;top:48px;right:3px;border-radius:5px;}
 .pcard.xs .variant-badge svg{width:9px;height:9px;}
 
-.pcard .photo-frame{position:relative;z-index:0;width:100%;height:160px;flex-shrink:0;overflow:hidden;}
+.pcard .photo-frame{position:relative;z-index:1;width:100%;height:160px;flex-shrink:0;overflow:hidden;}
 .pcard .avatar{position:absolute;inset:0;width:100%;height:100%;display:flex;align-items:center;justify-content:center;
   font-family:'Anton';font-size:44px;color:var(--chalk);letter-spacing:.02em;
   background:radial-gradient(circle at 42% 30%, var(--acc) 0%, #1b2016 42%, #0c0e09 78%);}
@@ -1463,6 +1463,10 @@ async function cardToCanvas(el, scale, fontCSS){
     im.onerror = rej;
     im.src = dataUrl;
   });
+  // onload can fire before a large/complex SVG data URI is fully decoded and
+  // ready for drawImage (seen on some mobile browsers on the first render) -
+  // decode() explicitly waits for that, avoiding a blank/partial capture.
+  if(img.decode) await img.decode().catch(()=>{});
   const canvas = document.createElement('canvas');
   canvas.width = w*scale; canvas.height = h*scale;
   const ctx = canvas.getContext('2d');
