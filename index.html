@@ -585,6 +585,27 @@ html{ -webkit-print-color-adjust:exact; print-color-adjust:exact; color-adjust:e
   /* mask-image has separate WebKit print bugs - drop the bottom fade-out for
      print rather than risk it rendering as solid black or fully hidden. */
   .pcard .face-photo, .pcard .avatar{ -webkit-mask-image:none !important; mask-image:none !important; }
+  /* Disabling those two wasn't enough - cards still printed as solid black
+     with a stray white streak, meaning the *background* gradients themselves
+     (repeating-linear-gradient / repeating-conic-gradient combined with the
+     "transparent" keyword, used everywhere for the ray texture, rarity
+     patterns, and the ::before shine sweep) are what's actually failing in
+     WebKit's print engine. Rather than audit dozens of per-theme gradient
+     rules, strip all background images for print and fall back to a flat
+     solid color - the border/glow (solid colors, not gradients) still shows
+     the rarity accent color correctly.  */
+  .pcard::before{ display:none !important; }
+  .pcard .pattern-layer{ display:none !important; }
+  .pcard{ background-image:none !important; background-color:#12151b !important; }
+  /* several foil themes fake a rainbow border via border:transparent + a
+     gradient background-image clipped to border-box - now that backgrounds
+     are stripped for print, force a solid accent-colored border instead of
+     leaving those borders invisible. */
+  .pcard{ border-color:var(--acc) !important; }
+  /* same gradient+transparent print bug hits the foil-name gradient-clip-text
+     effect, which would otherwise render as fully invisible (color:transparent
+     with no visible gradient fill) - fall back to a solid accent color. */
+  .pcard .name.name-variant{ background:none !important; -webkit-background-clip:initial !important; background-clip:initial !important; color:var(--acc) !important; }
 }
 .print-page{
   display:grid; gap:8px; justify-content:center; align-content:start;
