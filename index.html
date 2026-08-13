@@ -4,8 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
 <title>FOIL ELEVEN — Karten drucken</title>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Anton&family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
+<link href="./fonts/fonts.css" rel="stylesheet">
 <style>
 :root{
   --void:#080a0f; --panel:#10141d; --panel2:#161b26; --line:#232a38;
@@ -527,8 +526,8 @@ input,select{font-family:'Inter',sans-serif;}
 .pcard .stat-head span:first-child{color:var(--muted);}
 .pcard .bar{height:2.5px;background:rgba(255,255,255,.1);border-radius:2px;margin-top:2px;overflow:hidden;}
 .pcard .bar i{display:block;height:100%;background:var(--acc);border-radius:2px;}
-.pcard .pc-number{position:absolute;left:3px;top:12px;z-index:3;font-family:'JetBrains Mono',monospace;font-size:6px;font-weight:600;letter-spacing:.04em;color:rgba(238,241,246,.65);text-shadow:0 1px 2px rgba(0,0,0,.7);writing-mode:vertical-rl;text-orientation:sideways;white-space:nowrap;}
-.pcard.mini .pc-number{left:2px;top:9px;font-size:5px;}
+.pcard .pc-number{position:absolute;left:2px;top:14px;z-index:3;font-family:'JetBrains Mono',monospace;font-size:6px;font-weight:600;letter-spacing:.04em;color:rgba(238,241,246,.65);text-shadow:0 1px 2px rgba(0,0,0,.7);white-space:nowrap;transform-origin:left top;transform:rotate(90deg);}
+.pcard.mini .pc-number{left:1.5px;top:11px;font-size:5px;}
 .pcard.xs .pc-number{display:none;}
 
 .pcard.mini{width:128px;height:204px;}
@@ -1405,25 +1404,70 @@ function rarityInfo(ov){
   return {cls:'',label:'GOLD',acc:'#c9a24a'};
 }
 function mainPos(pos){ return (pos||'').split(',')[0].trim(); }
-function inlineComputedStyles(node){
-  // html2canvas can't render background-clip:text gradients, so shimmering
-  // "name-variant" foil names would otherwise export fully invisible (transparent).
-  // Swap them for a solid, legible fallback color before snapshotting.
-  node.querySelectorAll('.name-variant').forEach(nameEl=>{
-    const accent = getComputedStyle(nameEl.closest('.pcard')||node).getPropertyValue('--acc').trim() || '#e8c468';
-    nameEl.style.background = 'none';
-    nameEl.style.webkitBackgroundClip = 'initial';
-    nameEl.style.backgroundClip = 'initial';
-    nameEl.style.color = accent;
-    nameEl.style.animation = 'none';
-  });
-  const cs = getComputedStyle(node);
-  const decls = [];
-  for(const prop of cs) decls.push(prop);
-  for(const prop of decls){
-    try{ node.style.setProperty(prop, cs.getPropertyValue(prop), cs.getPropertyPriority(prop)); }catch(e){}
+// ===== pixel-perfect card export via SVG foreignObject (uses the real browser
+// CSS engine instead of html2canvas's incomplete re-implementation, so every
+// CSS feature - custom properties, repeating-gradient, background-clip:text,
+// multi-layer backgrounds - renders identically to the live card) =====
+const _dataUriCache = new Map();
+async function toDataURI(url){
+  if(url.startsWith('data:')) return url;
+  if(_dataUriCache.has(url)) return _dataUriCache.get(url);
+  const p = fetch(url).then(r=>r.blob()).then(b=>new Promise((res,rej)=>{
+    const fr = new FileReader();
+    fr.onload = ()=>res(fr.result);
+    fr.onerror = rej;
+    fr.readAsDataURL(b);
+  })).catch(()=>null);
+  _dataUriCache.set(url, p);
+  return p;
+}
+let _fontCssCache = null;
+async function getEmbeddedFontCSS(){
+  if(_fontCssCache) return _fontCssCache;
+  let css = await fetch('./fonts/fonts.css').then(r=>r.text());
+  const relUrls = [...css.matchAll(/url\((\.\/[^)]+)\)/g)].map(m=>m[1]);
+  for(const rel of [...new Set(relUrls)]){
+    const dataUri = await toDataURI('./fonts/' + rel.slice(2));
+    if(dataUri) css = css.split(rel).join(dataUri);
   }
-  for(const child of node.children) inlineComputedStyles(child);
+  _fontCssCache = css;
+  return css;
+}
+async function inlineImages(node){
+  const imgs = node.querySelectorAll('img');
+  await Promise.all([...imgs].map(async img=>{
+    const src = img.getAttribute('src');
+    if(!src) return;
+    const abs = new URL(src, location.href).href;
+    const dataUri = await toDataURI(abs);
+    if(dataUri) img.setAttribute('src', dataUri);
+  }));
+}
+async function cardToCanvas(el, scale, fontCSS){
+  const w = el.offsetWidth, h = el.offsetHeight;
+  const clone = el.cloneNode(true);
+  await inlineImages(clone);
+  const cardCSS = [...document.querySelectorAll('style')].map(s=>s.textContent).join('\n');
+  const wrap = document.createElement('div');
+  wrap.setAttribute('xmlns', 'http://www.w3.org/1999/xhtml');
+  wrap.style.cssText = `width:${w}px;height:${h}px;`;
+  wrap.appendChild(clone);
+  const xhtml = new XMLSerializer().serializeToString(wrap);
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}"><foreignObject width="100%" height="100%"><style>${fontCSS}\n${cardCSS}</style>${xhtml}</foreignObject></svg>`;
+  // Chrome taints the canvas if an SVG containing foreignObject is loaded via a blob:
+  // URL, even with zero external references - a data: URI avoids that entirely.
+  const dataUrl = 'data:image/svg+xml;charset=utf-8;base64,' + btoa(unescape(encodeURIComponent(svg)));
+  const img = await new Promise((res,rej)=>{
+    const im = new Image();
+    im.onload = ()=>res(im);
+    im.onerror = rej;
+    im.src = dataUrl;
+  });
+  const canvas = document.createElement('canvas');
+  canvas.width = w*scale; canvas.height = h*scale;
+  const ctx = canvas.getContext('2d');
+  ctx.drawImage(img, 0, 0, w*scale, h*scale);
+  return canvas;
 }
 function proxyImg(url){
   return 'https://wsrv.nl/?url=' + encodeURIComponent(url) + '&w=420&h=396&fit=cover&a=attention&err=404';
@@ -1723,6 +1767,7 @@ async function generatePDF(){
     stage.style.cssText = 'position:fixed;left:-9999px;top:0;';
     document.body.appendChild(stage);
 
+    const fontCSS = await getEmbeddedFontCSS();
     const canvasCache = new Map();
     let done = 0;
     for(const s of entries){
@@ -1732,10 +1777,7 @@ async function generatePDF(){
       stage.appendChild(el);
       // give images a moment to load
       await new Promise(res=>setTimeout(res, 60));
-      // html2canvas can't resolve CSS custom properties (var(--acc) etc.), so
-      // bake every element's fully-resolved computed style in as literal inline styles first
-      inlineComputedStyles(el);
-      const canvas = await html2canvas(el, {backgroundColor:null, scale:3, useCORS:true, allowTaint:false, logging:false});
+      const canvas = await cardToCanvas(el, 3, fontCSS);
       canvasCache.set(s.card.id, canvas);
       done++;
     }
