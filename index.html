@@ -1435,18 +1435,22 @@ async function getEmbeddedFontCSS(){
 }
 async function inlineImages(node){
   const imgs = node.querySelectorAll('img');
+  const failed = [];
   await Promise.all([...imgs].map(async img=>{
     const src = img.getAttribute('src');
     if(!src) return;
     const abs = new URL(src, location.href).href;
     const dataUri = await toDataURI(abs);
     if(dataUri) img.setAttribute('src', dataUri);
+    else { failed.push(abs); img.removeAttribute('src'); }
   }));
+  if(failed.length) console.warn('inlineImages: failed to embed', failed);
+  return failed;
 }
 async function cardToCanvas(el, scale, fontCSS){
   const w = el.offsetWidth, h = el.offsetHeight;
   const clone = el.cloneNode(true);
-  await inlineImages(clone);
+  const failedImages = await inlineImages(clone);
   const cardCSS = [...document.querySelectorAll('style')].map(s=>s.textContent).join('\n');
   const wrap = document.createElement('div');
   wrap.setAttribute('xmlns', 'http://www.w3.org/1999/xhtml');
@@ -1471,6 +1475,7 @@ async function cardToCanvas(el, scale, fontCSS){
   canvas.width = w*scale; canvas.height = h*scale;
   const ctx = canvas.getContext('2d');
   ctx.drawImage(img, 0, 0, w*scale, h*scale);
+  canvas._failedImages = failedImages;
   return canvas;
 }
 function proxyImg(url){
@@ -1773,6 +1778,7 @@ async function generatePDF(){
 
     const fontCSS = await getEmbeddedFontCSS();
     const canvasCache = new Map();
+    const allFailedImages = [];
     let done = 0;
     for(const s of entries){
       progressText.textContent = `Karte ${done+1} / ${entries.length} wird gerendert...`;
@@ -1782,10 +1788,12 @@ async function generatePDF(){
       // give images a moment to load
       await new Promise(res=>setTimeout(res, 60));
       const canvas = await cardToCanvas(el, 3, fontCSS);
+      if(canvas._failedImages && canvas._failedImages.length) allFailedImages.push({card: s.card.n, urls: canvas._failedImages});
       canvasCache.set(s.card.id, canvas);
       done++;
     }
     document.body.removeChild(stage);
+    if(allFailedImages.length) console.warn('PDF export: some images failed to embed', allFailedImages);
 
     // flatten selection respecting quantities
     let flat = [];
@@ -1807,6 +1815,10 @@ async function generatePDF(){
     }
 
     pdf.save(`foil-eleven-karten-${flat.length}.pdf`);
+    if(allFailedImages.length){
+      alert('PDF erstellt, aber bei ' + allFailedImages.length + ' Karte(n) konnten Bilder nicht geladen werden:\n' +
+        allFailedImages.map(f=>f.card + ': ' + f.urls.join(', ')).join('\n'));
+    }
   } catch(err){
     console.error(err);
     alert('PDF-Erstellung fehlgeschlagen: ' + err.message);
