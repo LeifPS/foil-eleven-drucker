@@ -617,7 +617,7 @@ html{ -webkit-print-color-adjust:exact; print-color-adjust:exact; color-adjust:e
 .print-page.size-pokemon{ grid-template-columns:repeat(3, 63mm); grid-template-rows:repeat(3, 88mm); }
 .mm-cell{ width:63mm; height:88mm; display:flex; align-items:center; justify-content:center; overflow:hidden; }
 .mm-cell .pcard{ flex-shrink:0; }
-.cut-wrap{ outline:0.5px dashed #c2c2c2; outline-offset:3px; }
+.cut-wrap{ outline:0.5px dashed #c2c2c2; outline-offset:3px; break-inside:avoid; page-break-inside:avoid; }
 </style>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
@@ -1742,7 +1742,7 @@ function renderPagination(totalPages){
 function isMobileDevice(){
   return /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
 }
-function doPrint(){
+async function doPrint(){
   const printRoot = document.getElementById('print-root');
   const size = document.getElementById('size-select').value; // 'base' | 'mini' | 'pokemon'
   const perPage = size==='mini' ? 20 : (size==='pokemon' ? 9 : 12);
@@ -1775,7 +1775,19 @@ function doPrint(){
     printRoot.appendChild(page);
   }
 
-  setTimeout(()=>{ window.print(); }, 150);
+  // A fixed 150ms delay isn't nearly enough for photos/flags/logos to
+  // actually finish downloading over a mobile connection, especially with
+  // many cards - wait for every image to load (or fail) before printing,
+  // so nothing is missing just because it hadn't arrived yet.
+  const imgs = [...printRoot.querySelectorAll('img')];
+  const imagesReady = Promise.all(imgs.map(img=>{
+    if(img.complete) return Promise.resolve();
+    return new Promise(res=>{ img.onload = res; img.onerror = res; });
+  }));
+  const timeout = new Promise(res=>setTimeout(res, 8000));
+  await Promise.race([imagesReady, timeout]);
+  await new Promise(res=>requestAnimationFrame(()=>requestAnimationFrame(res)));
+  window.print();
 }
 
 // ===== Universal PDF export (works identically on iOS/Android/desktop) =====
