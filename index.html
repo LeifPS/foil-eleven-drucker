@@ -1475,7 +1475,6 @@ async function getEmbeddedFontCSS(){
   _fontCssCache = css;
   return css;
 }
-const TRANSPARENT_PX = 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBTAA7';
 // Raster <img> elements embedded inside a data-URI SVG's foreignObject have
 // proven unreliable to actually paint on mobile Safari (the data loads fine,
 // nothing errors, they just don't show up) - every other CSS feature (text,
@@ -1526,6 +1525,15 @@ function drawCover(ctx, img, dx, dy, dw, dh, posX, posY){
   else { sw = img.naturalWidth; sh = sw/br; sx = 0; sy = (img.naturalHeight-sh)*posY; }
   ctx.drawImage(img, sx, sy, sw, sh, dx, dy, dw, dh);
 }
+// object-fit:contain - scale to fit within bounds preserving aspect ratio,
+// centered, instead of a plain stretch that distorts non-square crests/badges.
+function drawContain(ctx, img, dx, dy, dw, dh){
+  const ar = img.naturalWidth/img.naturalHeight, br = dw/dh;
+  let w, h;
+  if(ar > br){ w = dw; h = dw/ar; } else { h = dh; w = dh*ar; }
+  ctx.drawImage(img, dx+(dw-w)/2, dy+(dh-h)/2, w, h);
+}
+const ICON_FIT = {'nc-flag':'cover', 'nc-league':'contain', 'nc-club':'contain'};
 function getIconGeometry(el){
   const cardRect = el.getBoundingClientRect();
   const rel = r => ({x:r.left-cardRect.left, y:r.top-cardRect.top, w:r.width, h:r.height});
@@ -1547,19 +1555,23 @@ async function cardToCanvas(el, scale, fontCSS){
   // overlay (OV/position), the variant badge, and card-body (name/stats/
   // flag/club/league) - i.e. just the card shell, pattern layer, and border.
   const bgClone = el.cloneNode(true);
-  bgClone.querySelectorAll('.face-photo, .avatar, .photo-tint, .top, .variant-badge, .card-body').forEach(n=>n.style.visibility='hidden');
+  bgClone.querySelectorAll('.face-photo, .avatar, .photo-tint, .top, .variant-badge, .card-body, .pc-number').forEach(n=>n.style.visibility='hidden');
 
   // Foreground pass: the inverse - card's own background/pattern suppressed
   // (so it doesn't double-draw over the photo composited between the two
   // passes), photo itself blanked (composited separately), everything else
   // (tint, top, badge, card-body) rendered normally with a transparent
-  // background so only those elements show through.
+  // background so only those elements show through. .pc-number is a direct
+  // child of .pcard (not nested in anything hidden in the bg pass), so it
+  // must be excluded from exactly one pass - kept here, hidden in bg above -
+  // or it doubles up. Icon <img>s are hidden outright (not just blanked)
+  // so their box-shadow/border doesn't ghost through behind the real icon
+  // composited on top afterward.
   const fgClone = el.cloneNode(true);
   fgClone.style.background = 'none';
   fgClone.style.border = 'none';
   fgClone.style.boxShadow = 'none';
-  fgClone.querySelectorAll('.pattern-layer, .face-photo, .avatar').forEach(n=>n.style.visibility='hidden');
-  fgClone.querySelectorAll('.nc-flag, .nc-league, .nc-club').forEach(n=>n.setAttribute('src', TRANSPARENT_PX));
+  fgClone.querySelectorAll('.pattern-layer, .face-photo, .avatar, .nc-flag, .nc-league, .nc-club').forEach(n=>n.style.visibility='hidden');
 
   // Every slow/unreliable resource (2 SVG rasterizations + up to 4 images,
   // each with its own worst-case timeout) is kicked off in parallel instead
@@ -1614,8 +1626,10 @@ async function cardToCanvas(el, scale, fontCSS){
     if(!geo[cls]) return;
     const img = iconImgs[i];
     const r = geo[cls].rect;
-    if(img) ctx.drawImage(img, r.x*scale, r.y*scale, r.w*scale, r.h*scale);
-    else failedImages.push(geo[cls].url);
+    const dx=r.x*scale, dy=r.y*scale, dw=r.w*scale, dh=r.h*scale;
+    if(!img){ failedImages.push(geo[cls].url); return; }
+    if(ICON_FIT[cls] === 'contain') drawContain(ctx, img, dx, dy, dw, dh);
+    else drawCover(ctx, img, dx, dy, dw, dh, 0.5, 0.5);
   });
   canvas._failedImages = failedImages;
   return canvas;
