@@ -396,11 +396,34 @@ input,select{font-family:'Inter',sans-serif;}
     animation:sbcxSparkle 2.5s ease-in-out infinite;}
 @keyframes sbcxSparkle{0%,100%{opacity:.7;}50%{opacity:1;}}
 .pcard.pattern-promocardpattern .pattern-layer{background:
-    radial-gradient(circle at 50% 10%, rgba(255,206,0,.5), transparent 55%),
-    repeating-conic-gradient(from 0deg at 50% 10%, rgba(255,243,176,.2) 0deg 4deg, transparent 4deg 12deg);
-    animation:promoSparkle 2s linear infinite, promoDrift 5.5s ease-in-out infinite;}
-@keyframes promoSparkle{0%,100%{opacity:.65;}50%{opacity:1;}}
-@keyframes promoDrift{0%,100%{background-position:50% 10%, 50% 10%;}50%{background-position:35% 22%, 35% 22%;}}
+    radial-gradient(circle at 42% 35%, rgba(255,255,255,.55), transparent 3%),
+    conic-gradient(from 8deg at 42% 35%,
+      transparent 0deg, rgba(255,255,255,.55) 0deg 1deg, transparent 1deg 38deg,
+      rgba(255,206,0,.4) 38deg 39deg, transparent 39deg 74deg,
+      rgba(255,255,255,.4) 74deg 75.3deg, transparent 75.3deg 121deg,
+      rgba(255,255,255,.5) 121deg 122deg, transparent 122deg 158deg,
+      rgba(255,206,0,.35) 158deg 159.5deg, transparent 159.5deg 199deg,
+      rgba(255,255,255,.45) 199deg 200deg, transparent 200deg 244deg,
+      rgba(255,255,255,.35) 244deg 245.4deg, transparent 245.4deg 289deg,
+      rgba(255,206,0,.4) 289deg 290deg, transparent 290deg 332deg,
+      rgba(255,255,255,.5) 332deg 333deg, transparent 333deg 360deg),
+    repeating-conic-gradient(from 8deg at 42% 35%, rgba(255,255,255,.025) 0deg 20deg, rgba(255,255,255,.07) 20deg 40deg);
+    animation:shardGlintA 3s ease-in-out infinite;}
+.pcard.pattern-promocardpattern .pattern-layer::after{content:"";position:absolute;inset:0;
+  background:
+    radial-gradient(circle at 68% 70%, rgba(255,255,255,.4), transparent 2.5%),
+    conic-gradient(from 200deg at 68% 70%,
+      transparent 0deg, rgba(255,255,255,.4) 0deg 1deg, transparent 1deg 55deg,
+      rgba(255,255,255,.3) 55deg 56deg, transparent 56deg 100deg,
+      rgba(255,206,0,.32) 100deg 101.3deg, transparent 101.3deg 160deg,
+      rgba(255,255,255,.35) 160deg 161deg, transparent 161deg 230deg,
+      rgba(255,255,255,.3) 230deg 231deg, transparent 231deg 300deg,
+      rgba(255,255,255,.4) 300deg 301deg, transparent 301deg 360deg),
+    repeating-conic-gradient(from 200deg at 68% 70%, rgba(255,255,255,.02) 0deg 24deg, rgba(255,255,255,.06) 24deg 48deg);
+  animation:shardGlintB 3.6s ease-in-out infinite;
+  animation-delay:.9s;}
+@keyframes shardGlintA{0%,100%{opacity:.55;}30%{opacity:1;}55%{opacity:.5;}80%{opacity:.9;}}
+@keyframes shardGlintB{0%,100%{opacity:.85;}35%{opacity:.4;}65%{opacity:1;}90%{opacity:.45;}}
 .pcard.pattern-kontra .pattern-layer{background:
     repeating-linear-gradient(0deg, rgba(143,163,184,.08) 0 1px, transparent 1px 18px),
     repeating-linear-gradient(90deg, rgba(143,163,184,.08) 0 1px, transparent 1px 18px);
@@ -1369,6 +1392,7 @@ const CLUB_LOGO = {
   'Galatasaray SK': './logos/turkey/1500x1500/galatasaray.a30b6ee6.png',
 };
 const LEAGUE_LOGO = {
+  'Liga F': './logos/other/ligaf.svg',
   'Premier League': './logos/england/64x64/english-premier-league-v2.0792019b.png',
   'Championship': './logos/england/64x64/efl-championship.4cd5a6cf.png',
   'League One': './logos/england/64x64/efl-league-one.09905e74.png',
