@@ -122,6 +122,23 @@ function main() {
     console.log('No new variants - pure data update, no CSS porting needed.');
   }
 
+  // Collector numbers are stable, not positional: a card's number, once assigned,
+  // must never change on a later sync, or physically-printed cards go out of sync
+  // with the digital catalog. Carry every existing id's num forward untouched, and
+  // hand out the next free integers only to ids that are genuinely new.
+  let nextNum = Math.max(0, ...oldCards.map(c => c.num || 0)) + 1;
+  const oldNumById = new Map(oldCards.map(c => [c.id, c.num]));
+  let assignedCount = 0;
+  for (const c of newCards) {
+    if (oldNumById.has(c.id)) {
+      c.num = oldNumById.get(c.id);
+    } else {
+      c.num = nextNum++;
+      assignedCount++;
+    }
+  }
+  console.log(`Collector numbers: kept ${newCards.length - assignedCount} existing, assigned ${assignedCount} new (next free: ${nextNum}).`);
+
   const newJson = JSON.stringify(newCards);
   drucker = drucker.replace(
     /<script type="application\/json" id="cards-data">.*?<\/script>/s,
