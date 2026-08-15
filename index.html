@@ -1484,6 +1484,7 @@ const POS_DE = {
 };
 function posDE(label){ return POS_DE[label] || label; }
 const STAT_DE = {PAC:'TEM', SHO:'SCH', PAS:'PAS', DRI:'DRI', DEF:'DEF', PHY:'PHY'};
+const GK_STAT_DE = {PAC:'TEM', SHO:'ABS', PAS:'STE', DRI:'REF', DEF:'PAR', PHY:'HAL'};
 function rarityInfo(ov){
   if(ov>=95) return {cls:'r-ultimate',label:'ULTIMATE',acc:'#ffd76a'};
   if(ov>=90) return {cls:'r-icon',label:'ICON',acc:'#c78bf5'};
@@ -1748,12 +1749,13 @@ function cardEl(card, sizeClass){
     ${card.lg ? (leagueLogoUrl ? `<img class="nc-league" src="${proxyIcon(leagueLogoUrl)}" alt="" title="${card.lg}" loading="lazy" referrerpolicy="no-referrer" onerror="this.style.display='none'">` : `<div class="nc-league-mono" title="${card.lg}">${initialsOf2(card.lg)}</div>`) : ''}
     ${clubLogoUrl ? `<img class="nc-club" src="${proxyIcon(clubLogoUrl)}" alt="" title="${card.club}" loading="lazy" referrerpolicy="no-referrer" onerror="this.style.display='none'">` : (card.club ? `<div class="nc-club-mono" title="${card.club}">${initialsOf2(card.club)}</div>` : '')}
   </div>`;
+  const statLabels = card.gk ? GK_STAT_DE : STAT_DE;
   const bodyInner = `<div class="name${nameClass}">${card.n}</div>
        ${natClubIcons}
        <div class="stats">
-         ${statBar(STAT_DE.PAC,card.pac)}${statBar(STAT_DE.DRI,card.dri)}
-         ${statBar(STAT_DE.SHO,card.sho)}${statBar(STAT_DE.DEF,card.defn)}
-         ${statBar(STAT_DE.PAS,card.pas)}${statBar(STAT_DE.PHY,card.phy)}
+         ${statBar(statLabels.PAC,card.pac)}${statBar(statLabels.DRI,card.dri)}
+         ${statBar(statLabels.SHO,card.sho)}${statBar(statLabels.DEF,card.defn)}
+         ${statBar(statLabels.PAS,card.pas)}${statBar(statLabels.PHY,card.phy)}
        </div>`;
   div.innerHTML = `
     ${hasVariant ? '<div class="pattern-layer"></div>' : ''}
