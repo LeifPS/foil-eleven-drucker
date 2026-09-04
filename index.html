@@ -29,7 +29,15 @@ input,select{font-family:'Inter',sans-serif;}
 
 #app{max-width:1400px;margin:0 auto;padding:20px 20px 100px;}
 #layout{display:grid;grid-template-columns:280px 1fr;gap:20px;align-items:start;}
-@media (max-width:900px){ #layout{grid-template-columns:1fr;} #filters{position:static;} }
+@media (max-width:900px) and (min-width:761px){ #layout{grid-template-columns:1fr;} #filters{position:static;} }
+
+/* Mobile-only toolbar (search/filter trigger row) and drawer backdrop - both inert and
+   invisible above the 760px breakpoint, where the filters sidebar is just always visible. */
+#mobile-toolbar{display:none;}
+#filters-backdrop{display:none;}
+#filters-drawer-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;}
+#filters-close{display:none;}
+#filters-apply{display:none;}
 
 #filters{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:16px;position:sticky;top:88px;max-height:calc(100vh - 110px);overflow-y:auto;}
 #filters h3{font-size:12px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin-bottom:10px;}
@@ -913,6 +921,82 @@ input,select{font-family:'Inter',sans-serif;}
 
 
 
+/* ===================== MOBILE APP LAYOUT ===================== */
+.badge{position:absolute;top:-5px;right:-5px;background:var(--gold);color:#241a00;font-size:10px;font-weight:800;min-width:16px;height:16px;border-radius:50%;display:flex;align-items:center;justify-content:center;padding:0 3px;line-height:1;}
+.badge[hidden]{display:none;}
+@media (max-width:760px){
+  html,body{overflow-x:hidden;}
+  body.filters-open{overflow:hidden;}
+
+  #topbar{padding:10px 14px calc(10px + env(safe-area-inset-top,0px)) 14px;gap:8px 10px;row-gap:8px;}
+  .brand{gap:9px;}
+  .brand-mark{width:30px;height:30px;font-size:13px;border-radius:8px;}
+  .brand h1{font-size:15px;}
+  .brand p{display:none;}
+
+  #mobile-toolbar{display:flex;flex-basis:100%;gap:8px;}
+  #mobile-search-trigger{flex:1;display:flex;align-items:center;gap:8px;background:var(--panel2);border:1px solid var(--line);color:var(--muted);border-radius:10px;padding:0 12px;height:42px;font-size:13.5px;text-align:left;overflow:hidden;}
+  #mobile-search-trigger span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  #mobile-search-trigger svg{flex-shrink:0;}
+  #mobile-filter-btn{position:relative;background:var(--panel2);border:1px solid var(--line);color:var(--chalk);border-radius:10px;width:42px;height:42px;flex-shrink:0;display:flex;align-items:center;justify-content:center;}
+  #mobile-filter-btn.has-active{border-color:var(--turf-bright);color:var(--turf-bright);}
+
+  #app{padding:12px 10px 14px;}
+  #layout{display:block;}
+
+  /* Filters becomes a slide-in drawer instead of a sidebar. */
+  #filters{
+    position:fixed;top:0;left:0;bottom:0;width:86vw;max-width:340px;max-height:none;
+    border-radius:0 18px 18px 0;border-width:0 1px 0 0;
+    display:flex;flex-direction:column;overflow-y:auto;
+    padding:calc(14px + env(safe-area-inset-top,0px)) 16px 0;
+    transform:translateX(-105%);transition:transform .28s cubic-bezier(.22,.8,.22,1);
+    z-index:210;box-shadow:20px 0 50px rgba(0,0,0,.5);
+  }
+  body.filters-open #filters{transform:translateX(0);}
+  #filters-drawer-head{position:sticky;top:0;background:var(--panel);z-index:2;margin:-2px -16px 10px;padding:0 16px 10px;}
+  #filters-close{display:flex;align-items:center;justify-content:center;width:30px;height:30px;border-radius:50%;background:var(--panel2);color:var(--chalk);font-size:13px;flex-shrink:0;}
+  #filters-apply{
+    display:block;position:sticky;bottom:0;margin:14px -16px 0;
+    padding:13px 16px calc(13px + env(safe-area-inset-bottom,0px));
+    background:var(--turf);color:#eafff2;font-weight:700;font-size:13px;letter-spacing:.02em;
+    text-transform:uppercase;border-top:1px solid var(--line);
+  }
+  #reset-filters{margin-bottom:14px;}
+
+  #filters-backdrop{
+    display:block;position:fixed;inset:0;background:rgba(4,6,10,.6);z-index:205;
+    opacity:0;pointer-events:none;transition:opacity .25s;
+  }
+  body.filters-open #filters-backdrop{opacity:1;pointer-events:auto;}
+
+  /* bigger touch targets throughout the filter panel */
+  .chip{padding:8px 13px;font-size:12.5px;}
+  #filters input[type=text],#filters input[type=number],#filters select{padding:11px 12px;font-size:16px;}
+  #f-onlyselected, #f-pos{font-size:16px;}
+
+  #main-top{margin-bottom:10px;}
+  #grid{grid-template-columns:repeat(auto-fill,minmax(118px,1fr));gap:9px;}
+  .gcard-wrap .checkmark{width:26px;height:26px;font-size:14px;}
+  .gcard-wrap .addqty{padding:5px 8px;}
+  .gcard-wrap .addqty button{width:28px;height:28px;font-size:17px;}
+  #pagination button{padding:10px 15px;font-size:13px;}
+
+  /* Bottom tray becomes a stacked, thumb-friendly action sheet instead of one
+     overflowing row - the two primary actions (Drucken/PDF) get full-width
+     prominence, everything else collapses into compact rows above them. */
+  #tray{flex-direction:column;align-items:stretch;gap:9px;padding:10px 12px calc(10px + env(safe-area-inset-bottom,0px));}
+  #tray-info{width:100%;justify-content:space-between;}
+  #tray-thumbs{max-width:none;flex:1;}
+  #tray-actions{display:grid;grid-template-columns:1fr 1fr;gap:8px;width:100%;}
+  #size-select{grid-column:1/-1;width:100%;padding:11px;font-size:14px;}
+  #random-pick-group{grid-column:1/-1;width:100%;}
+  #random-pick-group #random-btn{flex:1;}
+  #clear-selection{grid-column:1/-1;padding:11px;font-size:12px;}
+  #print-btn,#pdf-btn{grid-column:span 1;padding:14px 6px;font-size:11.5px;}
+  .tray-hint{display:none;}
+}
+
 /* ===================== PRINT SHEET ===================== */
 #print-root{display:none;}
 html{ -webkit-print-color-adjust:exact; print-color-adjust:exact; color-adjust:exact; }
@@ -985,12 +1069,26 @@ html{ -webkit-print-color-adjust:exact; print-color-adjust:exact; color-adjust:e
       <p>Original-Kartendesign · auswählen, Menge festlegen, ausdrucken.</p>
     </div>
   </div>
+  <div id="mobile-toolbar">
+    <button id="mobile-search-trigger" type="button">
+      <svg viewBox="0 0 24 24" width="16" height="16"><circle cx="11" cy="11" r="7" fill="none" stroke="currentColor" stroke-width="2"/><line x1="21" y1="21" x2="16.5" y2="16.5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+      <span id="mobile-search-label">Suchen &amp; Filtern</span>
+    </button>
+    <button id="mobile-filter-btn" type="button">
+      <svg viewBox="0 0 24 24" width="17" height="17"><path d="M4 6h16M7 12h10M10 18h4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+      <span id="mobile-filter-badge" class="badge" hidden>0</span>
+    </button>
+  </div>
 </div>
+<div id="filters-backdrop"></div>
 
 <div id="app">
   <div id="layout">
     <aside id="filters">
-      <h3>Filter</h3>
+      <div id="filters-drawer-head">
+        <h3>Filter</h3>
+        <button id="filters-close" type="button" aria-label="Filter schließen">✕</button>
+      </div>
       <div class="f-group">
         <label class="f-label">Suche (Name)</label>
         <input type="text" id="f-search" placeholder="z.B. Bellingham...">
@@ -1029,6 +1127,7 @@ html{ -webkit-print-color-adjust:exact; print-color-adjust:exact; color-adjust:e
         </select>
       </div>
       <button id="reset-filters">Filter zurücksetzen</button>
+      <button id="filters-apply" type="button">Karten anzeigen</button>
     </aside>
 
     <main>
@@ -1054,13 +1153,13 @@ html{ -webkit-print-color-adjust:exact; print-color-adjust:exact; color-adjust:e
     </select>
     <button class="btn secondary" id="clear-selection">Auswahl leeren</button>
     <div id="random-pick-group" style="display:flex;align-items:center;gap:6px;">
-      <input type="number" id="random-count" min="1" max="500" value="12" title="Anzahl zufälliger Karten"
+      <input type="number" id="random-count" min="1" max="500" value="9" title="Anzahl zufälliger Karten"
         style="width:56px;background:var(--panel2);border:1px solid var(--line);color:var(--chalk);border-radius:8px;padding:8px 6px;font-size:13px;text-align:center;">
       <button class="btn secondary" id="random-btn" title="Fügt zufällige Karten zur Auswahl hinzu - je höher das Rating, desto seltener wird die Karte gezogen">🎲 Zufällig hinzufügen</button>
     </div>
     <button class="btn" id="print-btn" disabled>🖨 Drucken</button>
     <button class="btn secondary" id="pdf-btn" disabled>📄 PDF herunterladen</button>
-    <span style="font-size:10.5px;color:var(--muted);max-width:170px;line-height:1.3;">🖨 nutzt den Browser-Druck. 📄 baut die PDF selbst und funktioniert überall gleich.</span>
+    <span class="tray-hint" style="font-size:10.5px;color:var(--muted);max-width:170px;line-height:1.3;">🖨 nutzt den Browser-Druck. 📄 baut die PDF selbst und funktioniert überall gleich.</span>
   </div>
 </div>
 
@@ -2228,13 +2327,48 @@ function init(){
   document.getElementById('reset-filters').addEventListener('click', resetFilters);
   document.getElementById('clear-selection').addEventListener('click', ()=>{ selection.clear(); render(); });
   document.getElementById('random-btn').addEventListener('click', ()=>{
-    const n = Math.max(1, Math.min(500, parseInt(document.getElementById('random-count').value, 10) || 12));
+    const n = Math.max(1, Math.min(500, parseInt(document.getElementById('random-count').value, 10) || 9));
     pickRandomCards(n);
   });
   document.getElementById('print-btn').addEventListener('click', doPrint);
   document.getElementById('pdf-btn').addEventListener('click', generatePDF);
 
+  document.getElementById('mobile-search-trigger').addEventListener('click', ()=>{
+    openFilters();
+    setTimeout(()=>document.getElementById('f-search').focus(), 300);
+  });
+  document.getElementById('mobile-filter-btn').addEventListener('click', openFilters);
+  document.getElementById('filters-close').addEventListener('click', closeFilters);
+  document.getElementById('filters-apply').addEventListener('click', closeFilters);
+  document.getElementById('filters-backdrop').addEventListener('click', closeFilters);
+
   render();
+}
+
+// Mobile-only filter drawer (see #filters-backdrop/.filters-open in the mobile media query) -
+// these are harmless no-ops above the breakpoint since the drawer classes have no effect there.
+function openFilters(){ document.body.classList.add('filters-open'); }
+function closeFilters(){ document.body.classList.remove('filters-open'); }
+function activeFilterCount(){
+  let n = state.pools.size;
+  if(state.search) n++;
+  if(state.pos) n++;
+  if(state.ovMin!=null) n++;
+  if(state.ovMax!=null) n++;
+  if(state.nat) n++;
+  if(state.club) n++;
+  if(state.onlySelected) n++;
+  return n;
+}
+function updateMobileToolbar(){
+  const count = activeFilterCount();
+  const badge = document.getElementById('mobile-filter-badge');
+  const btn = document.getElementById('mobile-filter-btn');
+  badge.hidden = count===0;
+  badge.textContent = count;
+  btn.classList.toggle('has-active', count>0);
+  const searchVal = document.getElementById('f-search').value;
+  document.getElementById('mobile-search-label').textContent = searchVal ? `„${searchVal}“` : 'Suchen & Filtern';
 }
 
 function resetFilters(){
@@ -2266,18 +2400,21 @@ function getFiltered(){
 // Rarity-weighted random print selection: the higher a card's rating, the rarer it should be
 // drawn, mirroring how the source game's own packs weight their pulls (see e.g. legendpack's
 // draw() - cumulative probability buckets per OV tier). Two fixed reference points were given
-// (100+ ~= 2% per drawn card, 90-99 ~= 20%), the rest scales down monotonically as OV drops,
-// summing to 100% across all 6 tiers.
+// (100+ ~= 2% per drawn card, 90-99 ~= 20%); 80-89 was tuned down from an earlier pass (it was
+// eating almost the entire non-90+ share) in favor of 70-79/<70, still summing to 100%.
 const RANDOM_PICK_TIERS = [
   {min:100, max:Infinity, weight:0.02},
   {min:90,  max:99,       weight:0.20},
-  {min:85,  max:89,       weight:0.30},
-  {min:80,  max:84,       weight:0.25},
-  {min:70,  max:79,       weight:0.15},
-  {min:-Infinity, max:69, weight:0.08},
+  {min:85,  max:89,       weight:0.20},
+  {min:80,  max:84,       weight:0.18},
+  {min:70,  max:79,       weight:0.25},
+  {min:-Infinity, max:69, weight:0.15},
 ];
 function pickRandomCards(n){
-  const pool = getFiltered();
+  // Trainer cards (isManager) don't fit a player-card print run, and any card without a real
+  // photo would just print as a plain initials avatar - excluded from the random draw pool,
+  // though both remain pickable by hand via the normal filters/grid.
+  const pool = getFiltered().filter(c=>!c.isManager && c.img);
   if(!pool.length) return;
   const byTier = RANDOM_PICK_TIERS.map(t=>({...t, cards: pool.filter(c=>c.ov>=t.min && c.ov<=t.max)}));
   const available = new Set(pool.map(c=>c.id));
@@ -2319,6 +2456,8 @@ function toggleSelect(card, qtyDelta){
 function render(){
   const filtered = getFiltered();
   document.getElementById('result-count').innerHTML = `<b>${fmtNum(filtered.length)}</b> von ${fmtNum(CARDS.length)} Karten`;
+  document.getElementById('filters-apply').textContent = `${fmtNum(filtered.length)} Karten anzeigen`;
+  updateMobileToolbar();
 
   const area = document.getElementById('results-area');
   if(!filtered.length){
