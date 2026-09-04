@@ -1421,8 +1421,11 @@ const CLUB_LOGO = {
   'Fenerbahçe SK': './logos/turkey/1500x1500/fenerbahce.865697ea.png',
   'Galatasaray SK': './logos/turkey/1500x1500/galatasaray.a30b6ee6.png',
 };
+const LEGENDS_ICON_BADGE = './logos/other/icons-badge.png';
 const LEAGUE_LOGO = {
   'Liga F': './logos/other/ligaf.svg',
+  'Legenden': LEGENDS_ICON_BADGE,
+  'OG Icons': LEGENDS_ICON_BADGE,
   'Premier League': './logos/england/64x64/english-premier-league-v2.0792019b.png',
   'Championship': './logos/england/64x64/efl-championship.4cd5a6cf.png',
   'League One': './logos/england/64x64/efl-league-one.09905e74.png',
@@ -1798,7 +1801,10 @@ function cardEl(card, sizeClass){
   const topInner = `<div><div class="ov">${card.ov}</div><div class="ov-underline"></div></div>
        <div class="pos-label">${posLabelInner}</div>`;
   const flagCode = NAT_FLAG[card.nat];
-  const clubLogoUrl = CLUB_LOGO[card.club];
+  // Legenden/OG Icons cards show the shared Icons badge for both league and club slots, not
+  // their real historic club crest - same convention the source app uses for these cards.
+  const isLegendIconCard = card.lg==='Legenden' || card.lg==='OG Icons';
+  const clubLogoUrl = isLegendIconCard ? LEGENDS_ICON_BADGE : CLUB_LOGO[card.club];
   const leagueLogoUrl = resolveLeagueLogo(card);
   const natClubIcons = `<div class="nat-club-icons">
     ${flagCode ? `<img class="nc-flag" src="${proxyIcon('https://flagcdn.com/w40/'+flagCode+'.png')}" alt="" title="${card.nat}" loading="lazy" crossorigin="anonymous" onerror="this.style.display='none'">` : `<div class="nc-flag-mono" title="${card.nat||''}">${(card.nat||'?').slice(0,2).toUpperCase()}</div>`}
