@@ -71,36 +71,66 @@ const VARIANT_TO_POOL = {
 // left unmapped, so they never trip the "unmapped variant" error either.
 const EXCLUDED_VARIANTS = new Set(['legacy', 'legacystar', 'admin', 'kontrahent']);
 
+// Manager cards (MGR_BY_ID, isManager:true) are a separate catalog from the player pools above -
+// source's own Karten-Index concatenates both (see buildCardIndexUniverse), so drucker's total
+// should match that combined count, not just adminFullCardPool()'s player-only count. Pooled by
+// what each variant is actually a reward FOR, mirroring its player-card counterpart's pool.
+const MGR_VARIANT_TO_POOL = {
+  manager: "Trainer",
+  meistertrainer: "Meistertrainer",
+  uclw_mgr: "UCL Winners",
+  legende_mgr: "Legends",
+  wm_mgr: "WM",
+  zidane_mgr: "Kapitäne",
+  og_mgr: "OG Icons",
+};
+
 // Paste this into the browser console (or via the Claude Browser tool's javascript_exec)
 // on the SOURCE app once it's loaded, to produce new-cards.json:
 const EXTRACT_SNIPPET = `
 (function(){
   const VARIANT_TO_POOL = ${JSON.stringify(VARIANT_TO_POOL)};
+  const MGR_VARIANT_TO_POOL = ${JSON.stringify(MGR_VARIANT_TO_POOL)};
   const EXCLUDED_VARIANTS = new Set(${JSON.stringify([...EXCLUDED_VARIANTS])});
   // adminFullCardPool() is the source app's OWN "every real, obtainable card" helper - it force-
   // builds every lazily-cached pool (WM26 Variante/Kapitän, Breakout, trophy cards, ...) and
   // already excludes bot-filler/phantom cards by id range. Falls back to raw BY_ID if source is
   // an older version without it (pre-lazy-pools).
-  const all = (typeof adminFullCardPool === 'function' ? adminFullCardPool() : [...BY_ID.values()].filter(c=>!c.isManager))
+  const players = (typeof adminFullCardPool === 'function' ? adminFullCardPool() : [...BY_ID.values()].filter(c=>!c.isManager))
     .filter(c=>!EXCLUDED_VARIANTS.has(c.variant));
+  // Managers (MGR_BY_ID) are a wholly separate catalog the player-only helper above never
+  // includes - source's own Karten-Index concatenates both (see buildCardIndexUniverse), so this
+  // must too or the total count silently undershoots the real one by however many managers exist.
+  const managers = typeof MGR_BY_ID !== 'undefined' ? [...MGR_BY_ID.values()] : [];
+  const all = [...players, ...managers];
   const unmapped = new Set();
   const out = all.map(c=>{
-    const pool = VARIANT_TO_POOL[c.variant];
+    const pool = c.isManager ? (MGR_VARIANT_TO_POOL[c.variant] || 'Special') : VARIANT_TO_POOL[c.variant];
     if(!pool) unmapped.add(c.variant);
     const card = {
       id:c.id, n:c.n, pos:c.pos, ov:c.ov, pot:c.pot, nat:c.nat, lg:c.lg, club:c.club,
       pac:c.pac, sho:c.sho, pas:c.pas, dri:c.dri, defn:c.defn, phy:c.phy, foot:c.foot,
       img:c.img, gk:c.gk, variant:c.variant,
     };
+    // real-database import cards carry their own clubImg straight from the source (CLUB_LOGO only
+    // hand-covers the biggest clubs) - captured for every card, not just managers, since the
+    // 11k+-player real DB relies on it too.
+    if(c.clubImg) card.clubImg = c.clubImg;
     if(c.variantLabel) card.variantLabel = c.variantLabel;
     if(c.theme) card.theme = c.theme;
     if(c.baseId) card.baseId = c.baseId;
+    if(c.isManager){
+      card.isManager = true;
+      card.tier = c.tier;
+      card.boostType = c.boostType;
+      card.boostValue = c.boostValue;
+    }
     card.pool = pool || 'Special';
     return card;
   });
-  if(unmapped.size) console.warn('UNMAPPED VARIANTS - add to VARIANT_TO_POOL:', [...unmapped]);
+  if(unmapped.size) console.warn('UNMAPPED VARIANTS - add to VARIANT_TO_POOL/MGR_VARIANT_TO_POOL:', [...unmapped]);
   copy(JSON.stringify(out)); // Chrome DevTools: copies to clipboard
-  return {total: out.length, unmappedVariants: [...unmapped]};
+  return {total: out.length, players: players.length, managers: managers.length, unmappedVariants: [...unmapped]};
 })()
 `.trim();
 
