@@ -14,6 +14,17 @@
 // from dozens of pool-merging/derivation functions (e.g. Black Hole cards are generated
 // from Blackout cards at runtime). Re-implementing that in Node would drift from the
 // source; running the source's own JS and reading out BY_ID is what actually stays correct.
+//
+// To produce new-cards.json without hand-copying megabytes of JSON out of the browser:
+//   1. node scripts/dev-server.js <path-to-source-repo> scripts/new-cards.json
+//   2. open http://127.0.0.1:8934/index.html (loads the source app)
+//   3. run EXTRACT_SNIPPET in the page, but replace its `copy(...)` line with:
+//        fetch('/save', {method:'POST', body: json})
+//      (dev-server.js's /save endpoint writes the POST body straight to new-cards.json)
+//
+// This script does NOT diff CSS for themes/variants it already knows about - only brand-new
+// variant values get flagged. If an existing theme's look changes in the source (e.g. a
+// pattern-layer redesign), this script stays silent about it; check for that by hand.
 
 const fs = require('fs');
 const path = require('path');
@@ -43,6 +54,7 @@ const VARIANT_TO_POOL = {
   mysteryrare: "Mystery Elite",
   sbcexclusive: "SBC Karten",
   wmquestreward: "PROMO", promoquestreward: "PROMO",
+  kapitaen: "Kapitäne",
 };
 
 // Paste this into the browser console (or via the Claude Browser tool's javascript_exec)
