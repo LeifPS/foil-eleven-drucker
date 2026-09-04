@@ -506,7 +506,7 @@ input,select{font-family:'Inter',sans-serif;}
   radial-gradient(circle at 50% 6%, rgba(255,46,99,.35), transparent 60%),
   repeating-conic-gradient(from 0deg at 50% 6%, rgba(255,215,106,.12) 0deg 4deg, transparent 4deg 11deg);
   opacity:.9;}
-.pcard.theme-goat{border:3px solid #c9861f;
+.pcard.theme-goat{--acc:#c9861f;border:3px solid #c9861f;
   background:
     radial-gradient(circle at 28% 18%, rgba(255,255,255,.05), transparent 40%),
     radial-gradient(circle at 72% 82%, rgba(255,176,32,.1), transparent 45%),
@@ -536,7 +536,7 @@ input,select{font-family:'Inter',sans-serif;}
 .pcard .goat-crack.g3{top:70%;left:14%;width:50%;transform:rotate(8deg);animation-duration:3.8s;animation-delay:.6s;}
 .pcard .goat-crack.g4{top:60%;left:52%;width:34%;transform:rotate(-20deg);animation-duration:2.9s;animation-delay:1.8s;}
 @keyframes goatCrackFlicker{0%,100%{opacity:0;}45%{opacity:0;}52%{opacity:.9;}58%{opacity:.2;}70%{opacity:.7;}80%{opacity:0;}}
-.pcard.theme-ogicon{border:3px solid #8a6328;
+.pcard.theme-ogicon{--acc:#8a6328;border:3px solid #8a6328;
   background:
     radial-gradient(circle at 50% 42%, #3c2a12 0%, #241a0c 55%, #100b05 100%),
     radial-gradient(circle at 50% 50%, transparent 55%, rgba(0,0,0,.55) 100%);
@@ -938,6 +938,13 @@ html{ -webkit-print-color-adjust:exact; print-color-adjust:exact; color-adjust:e
      the rarity accent color correctly.  */
   .pcard::before{ display:none !important; }
   .pcard .pattern-layer{ display:none !important; }
+  /* Same WebKit print bug hits every bespoke FX layer added after this block was first written -
+     they all lean on radial-gradient/conic-gradient (+transparent stops) or animation-driven
+     opacity:0 base states (confetti/sparks/shards), so with *{animation:none} above they'd print
+     as either solid-black gradient artifacts or fully invisible particles. Same fix as pattern-layer:
+     drop them for print and rely on the solid --acc border below. */
+  .pcard .gem-facets, .pcard .refresh-fx, .pcard .legikone-fx, .pcard .wm26k-fx,
+  .pcard .breakout-fx, .pcard .goat-fx, .pcard .ogicon-fx, .pcard .iconpromo-fx{ display:none !important; }
   .pcard{ background-image:none !important; background-color:#12151b !important; }
   /* several foil themes fake a rainbow border via border:transparent + a
      gradient background-image clipped to border-box - now that backgrounds
