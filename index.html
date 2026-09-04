@@ -1053,6 +1053,11 @@ html{ -webkit-print-color-adjust:exact; print-color-adjust:exact; color-adjust:e
       <option value="mini">Mini (128×204) — 20 pro Blatt</option>
     </select>
     <button class="btn secondary" id="clear-selection">Auswahl leeren</button>
+    <div id="random-pick-group" style="display:flex;align-items:center;gap:6px;">
+      <input type="number" id="random-count" min="1" max="500" value="12" title="Anzahl zufälliger Karten"
+        style="width:56px;background:var(--panel2);border:1px solid var(--line);color:var(--chalk);border-radius:8px;padding:8px 6px;font-size:13px;text-align:center;">
+      <button class="btn secondary" id="random-btn" title="Fügt zufällige Karten zur Auswahl hinzu - je höher das Rating, desto seltener wird die Karte gezogen">🎲 Zufällig hinzufügen</button>
+    </div>
     <button class="btn" id="print-btn" disabled>🖨 Drucken</button>
     <button class="btn secondary" id="pdf-btn" disabled>📄 PDF herunterladen</button>
     <span style="font-size:10.5px;color:var(--muted);max-width:170px;line-height:1.3;">🖨 nutzt den Browser-Druck. 📄 baut die PDF selbst und funktioniert überall gleich.</span>
@@ -2222,6 +2227,10 @@ function init(){
   document.getElementById('f-onlyselected').addEventListener('change', e=>{ state.onlySelected = e.target.value==='yes'; state.page=1; render(); });
   document.getElementById('reset-filters').addEventListener('click', resetFilters);
   document.getElementById('clear-selection').addEventListener('click', ()=>{ selection.clear(); render(); });
+  document.getElementById('random-btn').addEventListener('click', ()=>{
+    const n = Math.max(1, Math.min(500, parseInt(document.getElementById('random-count').value, 10) || 12));
+    pickRandomCards(n);
+  });
   document.getElementById('print-btn').addEventListener('click', doPrint);
   document.getElementById('pdf-btn').addEventListener('click', generatePDF);
 
@@ -2254,6 +2263,46 @@ function getFiltered(){
   return list.slice().sort((a,b)=>b.ov-a.ov);
 }
 
+// Rarity-weighted random print selection: the higher a card's rating, the rarer it should be
+// drawn, mirroring how the source game's own packs weight their pulls (see e.g. legendpack's
+// draw() - cumulative probability buckets per OV tier). Two fixed reference points were given
+// (100+ ~= 2% per drawn card, 90-99 ~= 20%), the rest scales down monotonically as OV drops,
+// summing to 100% across all 6 tiers.
+const RANDOM_PICK_TIERS = [
+  {min:100, max:Infinity, weight:0.02},
+  {min:90,  max:99,       weight:0.20},
+  {min:85,  max:89,       weight:0.30},
+  {min:80,  max:84,       weight:0.25},
+  {min:70,  max:79,       weight:0.15},
+  {min:-Infinity, max:69, weight:0.08},
+];
+function pickRandomCards(n){
+  const pool = getFiltered();
+  if(!pool.length) return;
+  const byTier = RANDOM_PICK_TIERS.map(t=>({...t, cards: pool.filter(c=>c.ov>=t.min && c.ov<=t.max)}));
+  const available = new Set(pool.map(c=>c.id));
+  const picked = [];
+  const pickedIds = new Set();
+  let guard = n * 30; // avoid an infinite loop if every eligible tier empties out early
+  while(picked.length<n && available.size>0 && guard-->0){
+    const eligibleTiers = byTier.filter(t=>t.cards.some(c=>!pickedIds.has(c.id)));
+    if(!eligibleTiers.length) break;
+    // redistribute weight across only the tiers that still have unpicked cards, so an empty/
+    // exhausted tier (e.g. no 100+ cards in the current filter) doesn't just waste draws
+    const totalWeight = eligibleTiers.reduce((a,t)=>a+t.weight,0);
+    let r = Math.random()*totalWeight, tier = eligibleTiers[eligibleTiers.length-1];
+    for(const t of eligibleTiers){ if(r<t.weight){ tier = t; break; } r -= t.weight; }
+    const candidates = tier.cards.filter(c=>!pickedIds.has(c.id));
+    const card = candidates[Math.floor(Math.random()*candidates.length)];
+    pickedIds.add(card.id);
+    picked.push(card);
+  }
+  picked.forEach(card=>{
+    const existing = selection.get(card.id);
+    selection.set(card.id, {card, qty: (existing?existing.qty:0)+1});
+  });
+  render();
+}
 function toggleSelect(card, qtyDelta){
   const existing = selection.get(card.id);
   if(qtyDelta===undefined){
