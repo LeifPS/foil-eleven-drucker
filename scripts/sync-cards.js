@@ -53,16 +53,36 @@ const VARIANT_TO_POOL = {
   week_mvp: "Wochen Pass",
   mysteryrare: "Mystery Elite",
   sbcexclusive: "SBC Karten",
-  wmquestreward: "PROMO", promoquestreward: "PROMO",
+  wmquestreward: "PROMO", promoquestreward: "PROMO", marcelolegacy: "PROMO",
   kapitaen: "Kapitäne",
+  wm26_variante: "WM 2026", wm26_kapitaen: "WM 2026",
+  breakout: "Breakout",
+  ratings27: "27 Ratings", ratings27reload: "27 Ratings",
+  iconpromo: "Icon Promo",
+  siege_trophy: "Erfolge", liga_champion: "Erfolge", wep_trophy: "Erfolge",
+  // deliberately excluded, matching source's own adminFullCardPool() catalog filter:
+  //  - legacy/legacystar: source's own comment says these are "not yet in the index" -
+  //    hidden:true/admin-test only, roster/photos not finalized.
+  //  - admin: debug/easter-egg cards, "kein regulärer Erhalt im Spiel möglich".
+  //  - kontrahent: bot-only opponent filler, never obtainable.
 };
+// variants that must NEVER be printed even if they show up in adminFullCardPool()'s output -
+// see the comment above. Cards with these variants are dropped before pool-mapping, not just
+// left unmapped, so they never trip the "unmapped variant" error either.
+const EXCLUDED_VARIANTS = new Set(['legacy', 'legacystar', 'admin', 'kontrahent']);
 
 // Paste this into the browser console (or via the Claude Browser tool's javascript_exec)
 // on the SOURCE app once it's loaded, to produce new-cards.json:
 const EXTRACT_SNIPPET = `
 (function(){
   const VARIANT_TO_POOL = ${JSON.stringify(VARIANT_TO_POOL)};
-  const all = [...BY_ID.values()].filter(c=>!c.isManager);
+  const EXCLUDED_VARIANTS = new Set(${JSON.stringify([...EXCLUDED_VARIANTS])});
+  // adminFullCardPool() is the source app's OWN "every real, obtainable card" helper - it force-
+  // builds every lazily-cached pool (WM26 Variante/Kapitän, Breakout, trophy cards, ...) and
+  // already excludes bot-filler/phantom cards by id range. Falls back to raw BY_ID if source is
+  // an older version without it (pre-lazy-pools).
+  const all = (typeof adminFullCardPool === 'function' ? adminFullCardPool() : [...BY_ID.values()].filter(c=>!c.isManager))
+    .filter(c=>!EXCLUDED_VARIANTS.has(c.variant));
   const unmapped = new Set();
   const out = all.map(c=>{
     const pool = VARIANT_TO_POOL[c.variant];

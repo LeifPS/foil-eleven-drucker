@@ -14,7 +14,7 @@ const path = require('path');
 
 function extractStyle(html) {
   const m = html.match(/<style>([\s\S]*?)<\/style>/);
-  return m[1];
+  return m[1].replace(/\r\n/g, '\n');
 }
 
 function splitRules(css) {
@@ -78,8 +78,12 @@ function main() {
 
   let themes = themeArgs;
   if (!themes.length) {
+    // union of BOTH sides - checking only drucker's own theme names is blind to a theme drucker
+    // never had at all (found the hard way: source completely redesigned .theme-ogicon, but
+    // drucker never had ANY .theme-ogicon rule to begin with, so it never appeared as "differs").
     const set = new Set();
-    [...drucker.matchAll(/\.pcard\.theme-([a-z_]+)/g)].forEach(m => set.add(m[1]));
+    [...drucker.matchAll(/\.pcard\.theme-([a-z_0-9]+)/g)].forEach(m => set.add(m[1]));
+    [...source.matchAll(/\.pcard\.theme-([a-z_0-9]+)/g)].forEach(m => set.add(m[1]));
     themes = [...set].sort();
   }
 
