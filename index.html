@@ -380,24 +380,34 @@ input,select{font-family:'Inter',sans-serif;}
     animation:bhSwirlRev 6s linear infinite;transform-origin:50% 42%;}
 @keyframes bhSwirl{from{transform:rotate(0deg);}to{transform:rotate(360deg);}}
 @keyframes bhSwirlRev{from{transform:rotate(360deg);}to{transform:rotate(0deg);}}
-.pcard.pattern-saph .pattern-layer{background:
-    repeating-linear-gradient(60deg, rgba(61,139,255,.16) 0 2px, transparent 2px 14px),
-    repeating-linear-gradient(-60deg, rgba(61,139,255,.12) 0 2px, transparent 2px 14px),
-    repeating-linear-gradient(0deg, rgba(191,224,255,.09) 0 1.5px, transparent 1.5px 14px),
-    radial-gradient(circle at 50% 10%, rgba(61,139,255,.3), transparent 55%);
-    animation:gemSparkle 2.6s ease-in-out infinite;}
-.pcard.pattern-rub .pattern-layer{background:
-    repeating-linear-gradient(60deg, rgba(255,61,92,.18) 0 2px, transparent 2px 14px),
-    repeating-linear-gradient(-60deg, rgba(255,61,92,.13) 0 2px, transparent 2px 14px),
-    repeating-linear-gradient(0deg, rgba(255,194,204,.09) 0 1.5px, transparent 1.5px 14px),
-    radial-gradient(circle at 50% 10%, rgba(255,61,92,.32), transparent 55%);
-    animation:gemSparkle 2.4s ease-in-out infinite;}
-@keyframes gemSparkle{0%,100%{opacity:.72;}50%{opacity:1;}}
-.pcard.pattern-dia .pattern-layer{background:
-    radial-gradient(circle at 50% 12%, rgba(234,252,255,.5), transparent 58%),
-    repeating-conic-gradient(from 0deg at 50% 12%, rgba(255,255,255,.16) 0deg 3deg, transparent 3deg 9deg);
-    animation:diaSparkle 2s ease-in-out infinite;}
-@keyframes diaSparkle{0%,100%{opacity:.7;}50%{opacity:1;}}
+/* Kronjuwelen (Saphir/Rubin/Diamant) no longer use the rotating-sparkle pattern-layer every
+   other theme uses - see .gem-facets below for their cut-gem treatment instead. */
+.pcard .gem-facets{position:absolute;inset:0;z-index:0;pointer-events:none;border-radius:14px;overflow:hidden;mix-blend-mode:screen;}
+.pcard .gem-facets i{position:absolute;inset:0;display:block;font-style:normal;}
+.pcard .gem-facets .gf1{animation:gfShiftA 7s ease-in-out infinite;}
+.pcard .gem-facets .gf2{animation:gfShiftB 8.5s ease-in-out infinite;}
+.pcard .gem-facets .gf3{animation:gfShiftC 6.5s ease-in-out infinite;}
+@keyframes gfShiftA{
+  0%,100%{clip-path:polygon(0% 0%, 58% 0%, 26% 42%, 0% 55%);}
+  50%{clip-path:polygon(0% 0%, 66% 6%, 30% 50%, 0% 64%);}
+}
+@keyframes gfShiftB{
+  0%,100%{clip-path:polygon(100% 0%, 100% 46%, 55% 24%, 68% 0%);}
+  50%{clip-path:polygon(100% 0%, 100% 54%, 48% 30%, 60% 0%);}
+}
+@keyframes gfShiftC{
+  0%,100%{clip-path:polygon(100% 100%, 40% 100%, 62% 62%, 100% 55%);}
+  50%{clip-path:polygon(100% 100%, 32% 100%, 55% 68%, 100% 46%);}
+}
+.pcard.theme-saph .gem-facets .gf1{background:linear-gradient(135deg, rgba(61,139,255,.55), transparent 70%);}
+.pcard.theme-saph .gem-facets .gf2{background:linear-gradient(210deg, rgba(191,224,255,.45), transparent 65%);}
+.pcard.theme-saph .gem-facets .gf3{background:linear-gradient(320deg, rgba(18,48,92,.65), transparent 60%);}
+.pcard.theme-rub .gem-facets .gf1{background:linear-gradient(135deg, rgba(255,61,92,.55), transparent 70%);}
+.pcard.theme-rub .gem-facets .gf2{background:linear-gradient(210deg, rgba(255,194,204,.45), transparent 65%);}
+.pcard.theme-rub .gem-facets .gf3{background:linear-gradient(320deg, rgba(112,30,44,.65), transparent 60%);}
+.pcard.theme-dia .gem-facets .gf1{background:linear-gradient(135deg, rgba(234,252,255,.6), transparent 70%);}
+.pcard.theme-dia .gem-facets .gf2{background:linear-gradient(210deg, rgba(122,217,255,.5), transparent 65%);}
+.pcard.theme-dia .gem-facets .gf3{background:linear-gradient(320deg, rgba(201,168,255,.5), transparent 60%);}
 .pcard.pattern-wpmvp .pattern-layer{background:
     radial-gradient(circle at 50% 8%, rgba(255,215,106,.4), transparent 55%),
     repeating-conic-gradient(from -20deg at 18% 50%, rgba(255,215,106,.14) 0deg 6deg, transparent 6deg 22deg),
@@ -1683,7 +1693,7 @@ async function cardToCanvas(el, scale, fontCSS){
   fgClone.style.setProperty('background', 'none', 'important');
   fgClone.style.setProperty('border', 'none', 'important');
   fgClone.style.setProperty('box-shadow', 'none', 'important');
-  fgClone.querySelectorAll('.pattern-layer, .face-photo, .avatar, .nc-flag, .nc-league, .nc-club').forEach(n=>n.style.visibility='hidden');
+  fgClone.querySelectorAll('.pattern-layer, .gem-facets, .face-photo, .avatar, .nc-flag, .nc-league, .nc-club').forEach(n=>n.style.visibility='hidden');
 
   // Every slow/unreliable resource (2 SVG rasterizations + up to 4 images,
   // each with its own worst-case timeout) is kicked off in parallel instead
@@ -1770,6 +1780,8 @@ function cardEl(card, sizeClass){
   const r = rarityInfo(card.ov);
   const hasVariant = card.variant && card.variant!=='base';
   const family = hasVariant ? (PATTERN_FAMILY[card.theme || '']||'') : '';
+  const isGemTier = card.theme==='saph' || card.theme==='rub' || card.theme==='dia';
+  const gemFacetsHTML = isGemTier ? `<div class="gem-facets"><i class="gf1"></i><i class="gf2"></i><i class="gf3"></i></div>` : '';
   const div = document.createElement('div');
   div.className = `pcard ${r.cls} ${hasVariant?'theme-'+card.theme:''} ${family?'pattern-'+family:''} ${sizeClass||''}`.trim();
   const nameClass = hasVariant ? ' name-variant' : '';
@@ -1803,6 +1815,7 @@ function cardEl(card, sizeClass){
        </div>`;
   div.innerHTML = `
     ${hasVariant ? '<div class="pattern-layer"></div>' : ''}
+    ${gemFacetsHTML}
     <div class="photo-frame">
       ${photoInner}
       <div class="photo-tint"></div>
