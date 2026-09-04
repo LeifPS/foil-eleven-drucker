@@ -107,10 +107,15 @@ const EXTRACT_SNIPPET = `
   const out = all.map(c=>{
     const pool = c.isManager ? (MGR_VARIANT_TO_POOL[c.variant] || 'Special') : VARIANT_TO_POOL[c.variant];
     if(!pool) unmapped.add(c.variant);
+    // cdn.sofifa.net image URLs are systematically broken (anti-hotlink protection blocks even
+    // the wsrv.nl proxy's own fetch - confirmed 0/20 loading in a sample, and most are outright
+    // 404 even with a browser referer) - treated as no photo at all, same as a card with no img
+    // field, rather than let every one of these silently fail to load at render/print/PDF time.
+    const img = (c.img && c.img.includes('cdn.sofifa.net')) ? undefined : c.img;
     const card = {
       id:c.id, n:c.n, pos:c.pos, ov:c.ov, pot:c.pot, nat:c.nat, lg:c.lg, club:c.club,
       pac:c.pac, sho:c.sho, pas:c.pas, dri:c.dri, defn:c.defn, phy:c.phy, foot:c.foot,
-      img:c.img, gk:c.gk, variant:c.variant,
+      img, gk:c.gk, variant:c.variant,
     };
     // real-database import cards carry their own clubImg straight from the source (CLUB_LOGO only
     // hand-covers the biggest clubs) - captured for every card, not just managers, since the
