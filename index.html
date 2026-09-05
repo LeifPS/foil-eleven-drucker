@@ -2401,22 +2401,31 @@ function getFiltered(){
 // drawn, mirroring how the source game's own packs weight their pulls (see e.g. legendpack's
 // draw() - cumulative probability buckets per OV tier). Originally tier-bucketed (100+, 90-99,
 // 85-89, 80-84, 70-79, <70), nerfed twice within that scheme, then switched to a continuous
-// per-OV-point exponential decay so every individual rating gets its own strictly-decreasing
-// odds instead of two cards in the same bucket (e.g. a 105 and a 100, or a 99 and a 98) sharing
-// identical chances. Each +1 OV multiplies a card's relative pick-weight by RANDOM_PICK_DECAY.
-// Buffed from 0.9 to 0.93, then 0.95, then tuned to 0.9968 so a 9-card print run lands a 100+
-// OV card roughly 8% of the time (1-(1-p)^9 solved against the actual pool's OV distribution).
-const RANDOM_PICK_DECAY = 0.9968;
+// per-OV-point exponential decay (RANDOM_PICK_DECAY, buffed 0.9 -> 0.93 -> 0.95 -> 0.9968) so
+// every individual rating got its own strictly-decreasing odds instead of two cards in the same
+// bucket sharing identical chances.
+//
+// A pure exponential can't shrink the low-60s share without also flattening/shrinking
+// everything above it (it's a monotonic curve pinned at 1.0 at the pool's lowest OV), so to
+// pull weight out of 60-69 and into 80-89 while leaving the 100+ tail exactly where it was,
+// this is now a Gamma-shaped curve instead: weight(ov) = (ov-minOv+1)^ALPHA * R^(ov-minOv).
+// The polynomial term ramps weight up through the low OVs (suppressing 60-69 relative to the
+// rest), the exponential term tapers it back down (still guaranteeing e.g. a 105 is rarer than
+// a 100, a 99 rarer than a 98 - anything past the peak decreases strictly per OV point), and
+// the two together peak around OV ~83. R is solved so 100+ lands at ~8% over a 9-card run,
+// same target as before.
+const RANDOM_PICK_ALPHA = 1.7;
+const RANDOM_PICK_DECAY = 0.9157;
 function pickRandomCards(n){
   // Trainer cards (isManager) don't fit a player-card print run, and any card without a real
   // photo would just print as a plain initials avatar - excluded from the random draw pool,
   // though both remain pickable by hand via the normal filters/grid.
   const pool = getFiltered().filter(c=>!c.isManager && c.img);
   if(!pool.length) return;
-  // Offset by the pool's lowest OV so the exponent stays small (avoids float underflow on a
+  // Offset by the pool's lowest OV so the exponents stay small (avoids float underflow on a
   // deep pool) without changing the *relative* weighting between any two cards.
   const minOv = Math.min(...pool.map(c=>c.ov));
-  const weightOf = c => Math.pow(RANDOM_PICK_DECAY, c.ov - minOv);
+  const weightOf = c => Math.pow(c.ov - minOv + 1, RANDOM_PICK_ALPHA) * Math.pow(RANDOM_PICK_DECAY, c.ov - minOv);
   const remaining = pool.slice();
   const picked = [];
   while(picked.length<n && remaining.length>0){
