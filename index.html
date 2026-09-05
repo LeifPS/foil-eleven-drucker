@@ -2399,16 +2399,17 @@ function getFiltered(){
 
 // Rarity-weighted random print selection: the higher a card's rating, the rarer it should be
 // drawn, mirroring how the source game's own packs weight their pulls (see e.g. legendpack's
-// draw() - cumulative probability buckets per OV tier). Nerfed twice from the original two given
-// anchors (100+ ~2%, 90-99 ~20%): first because 80-89 was eating almost the entire non-90+ share,
-// then again across the whole 80+ range in favor of 70-79/<70 - still summing to 100%.
+// draw() - cumulative probability buckets per OV tier). Nerfed three times from the original two
+// given anchors (100+ ~2%, 90-99 ~20%): first because 80-89 was eating almost the entire non-90+
+// share, then again across the whole 80+ range in favor of 70-79/<70, then once more shifting
+// further weight from 80+ down into <70 - still summing to 100%.
 const RANDOM_PICK_TIERS = [
-  {min:100, max:Infinity, weight:0.015},
-  {min:90,  max:99,       weight:0.15},
-  {min:85,  max:89,       weight:0.17},
-  {min:80,  max:84,       weight:0.175},
-  {min:70,  max:79,       weight:0.26},
-  {min:-Infinity, max:69, weight:0.23},
+  {min:100, max:Infinity, weight:0.008},
+  {min:90,  max:99,       weight:0.09},
+  {min:85,  max:89,       weight:0.11},
+  {min:80,  max:84,       weight:0.12},
+  {min:70,  max:79,       weight:0.25},
+  {min:-Infinity, max:69, weight:0.422},
 ];
 function pickRandomCards(n){
   // Trainer cards (isManager) don't fit a player-card print run, and any card without a real
