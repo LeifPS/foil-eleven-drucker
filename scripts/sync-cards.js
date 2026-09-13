@@ -60,6 +60,8 @@ const VARIANT_TO_POOL = {
   ratings27: "27 Ratings", ratings27reload: "27 Ratings",
   iconpromo: "Icon Promo",
   siege_trophy: "Erfolge", liga_champion: "Erfolge", wep_trophy: "Erfolge",
+  iconswap2: "Icon Swap: Remastered",
+  ucl_champion: "Champions-League-Sieger", uel_champion: "Europa-League-Sieger",
   // deliberately excluded, matching source's own adminFullCardPool() catalog filter:
   //  - legacy/legacystar: source's own comment says these are "not yet in the index" -
   //    hidden:true/admin-test only, roster/photos not finalized.
@@ -124,6 +126,7 @@ const EXTRACT_SNIPPET = `
     if(c.variantLabel) card.variantLabel = c.variantLabel;
     if(c.theme) card.theme = c.theme;
     if(c.baseId) card.baseId = c.baseId;
+    if(c.iconswap2Tier) card.iconswap2Tier = c.iconswap2Tier;
     if(c.isManager){
       card.isManager = true;
       card.tier = c.tier;
