@@ -2141,14 +2141,18 @@ function drawContain(ctx, img, dx, dy, dw, dh){
   if(ar > br){ w = dw; h = dw/ar; } else { h = dh; w = dh*ar; }
   ctx.drawImage(img, dx+(dw-w)/2, dy+(dh-h)/2, w, h);
 }
-const ICON_FIT = {'nc-flag':'cover', 'nc-league':'contain', 'nc-club':'contain'};
+const ICON_FIT = {'nc-flag':'cover', 'nc-league':'contain', 'nc-club':'contain', 'uclchamp-comp-logo-img':'contain', 'uclchamp-club-bg':'contain'};
+// uclchamp-club-bg (the big centered club-crest watermark, meant to sit BEHIND the photo like the
+// card's own pattern-layer) is composited separately from the other icons below, drawn right after
+// the background pass instead of alongside the foreground ones - see BG_ICON_CLASSES in cardToCanvas.
+const BG_ICON_CLASSES = ['uclchamp-club-bg'];
 function getIconGeometry(el){
   const cardRect = el.getBoundingClientRect();
   const rel = r => ({x:r.left-cardRect.left, y:r.top-cardRect.top, w:r.width, h:r.height});
   const out = {};
   const photo = el.querySelector('.face-photo');
   if(photo) out.photo = {url: photo.getAttribute('src'), rect: rel(el.querySelector('.photo-frame').getBoundingClientRect())};
-  ['nc-flag','nc-league','nc-club'].forEach(cls=>{
+  ['nc-flag','nc-league','nc-club','uclchamp-comp-logo-img','uclchamp-club-bg'].forEach(cls=>{
     const iconEl = el.querySelector('.'+cls);
     if(iconEl) out[cls] = {url: iconEl.getAttribute('src'), rect: rel(iconEl.getBoundingClientRect())};
   });
@@ -2164,6 +2168,12 @@ async function cardToCanvas(el, scale, fontCSS){
   // flag/club/league) - i.e. just the card shell, pattern layer, and border.
   const bgClone = el.cloneNode(true);
   bgClone.querySelectorAll('.face-photo, .avatar, .photo-tint, .top, .variant-badge, .card-body, .pc-number').forEach(n=>n.style.visibility='hidden');
+  // uclchamp-club-bg/uclchamp-comp-logo-img are real cross-origin <img>s, not pure CSS like the rest
+  // of .uclchamp-fx - foreignObject-embedded cross-origin images are unreliable (same reason
+  // nc-flag/nc-league/nc-club are hidden here too), so blank them and composite manually below
+  // instead. The gradient/watermark CONTAINER itself stays visible in this bg pass - only the two
+  // <img>s inside it are hidden.
+  bgClone.querySelectorAll('.uclchamp-club-bg, .uclchamp-comp-logo-img').forEach(n=>n.style.visibility='hidden');
 
   // Foreground pass: the inverse - card's own background/pattern suppressed
   // (so it doesn't double-draw over the photo composited between the two
@@ -2182,18 +2192,23 @@ async function cardToCanvas(el, scale, fontCSS){
   fgClone.style.setProperty('background', 'none', 'important');
   fgClone.style.setProperty('border', 'none', 'important');
   fgClone.style.setProperty('box-shadow', 'none', 'important');
-  fgClone.querySelectorAll('.pattern-layer, .gem-facets, .refresh-fx, .legikone-fx, .wm26k-fx, .breakout-fx, .goat-fx, .ogicon-fx, .iconpromo-fx, .face-photo, .avatar, .nc-flag, .nc-league, .nc-club').forEach(n=>n.style.visibility='hidden');
+  // .iconswap2-fx/.uclchamp-fx sit BEHIND the photo (z-index:0, same as pattern-layer/gem-facets/
+  // etc.) - hidden here in full so they don't redraw on top of the already-composited photo below
+  // (that was the actual "photo appears behind the gradient" bug: these two weren't in this list,
+  // so they rendered in both passes and the 2nd, foreground draw painted over the photo).
+  fgClone.querySelectorAll('.pattern-layer, .gem-facets, .refresh-fx, .legikone-fx, .wm26k-fx, .breakout-fx, .goat-fx, .ogicon-fx, .iconpromo-fx, .iconswap2-fx, .uclchamp-fx, .face-photo, .avatar, .nc-flag, .nc-league, .nc-club').forEach(n=>n.style.visibility='hidden');
 
   // Every slow/unreliable resource (2 SVG rasterizations + up to 4 images,
   // each with its own worst-case timeout) is kicked off in parallel instead
   // of sequentially, so the total wait is bounded by the single slowest one
   // instead of their sum.
-  const iconClasses = ['nc-flag','nc-league','nc-club'];
-  const [bgImg, fgImg, photoImg, ...iconImgs] = await Promise.all([
+  const iconClasses = ['nc-flag','nc-league','nc-club','uclchamp-comp-logo-img'];
+  const [bgImg, fgImg, photoImg, bgIconImgs, iconImgs] = await Promise.all([
     svgToImage(bgClone, w, h, fontCSS, cardCSS),
     svgToImage(fgClone, w, h, fontCSS, cardCSS),
     geo.photo ? loadImage(geo.photo.url) : Promise.resolve(null),
-    ...iconClasses.map(cls => geo[cls] ? loadImage(geo[cls].url) : Promise.resolve(null)),
+    Promise.all(BG_ICON_CLASSES.map(cls => geo[cls] ? loadImage(geo[cls].url) : Promise.resolve(null))),
+    Promise.all(iconClasses.map(cls => geo[cls] ? loadImage(geo[cls].url) : Promise.resolve(null))),
   ]);
 
   const canvas = document.createElement('canvas');
@@ -2202,6 +2217,18 @@ async function cardToCanvas(el, scale, fontCSS){
   ctx.drawImage(bgImg, 0, 0, w*scale, h*scale);
 
   const failedImages = [];
+  // club-crest watermark: drawn right after the background pass (matching its live z-index:0,
+  // BEHIND the photo) at its live CSS opacity of .16, same object-fit:contain as the CSS.
+  BG_ICON_CLASSES.forEach((cls, i)=>{
+    if(!geo[cls]) return;
+    const img = bgIconImgs[i];
+    if(!img){ failedImages.push(geo[cls].url); return; }
+    const r = geo[cls].rect;
+    ctx.save();
+    ctx.globalAlpha = 0.16;
+    drawContain(ctx, img, r.x*scale, r.y*scale, r.w*scale, r.h*scale);
+    ctx.restore();
+  });
   if(geo.photo){
     if(photoImg){
       const r = geo.photo.rect;
@@ -2355,7 +2382,7 @@ function cardEl(card, sizeClass){
     const [c1,c2] = uclClubColors(card.club);
     const clubLogo = CLUB_LOGO[card.club] || card.clubImg;
     const compBadgeUrl = card.theme==='uelchamp' ? UEL_REAL_LOGO_URL : UCL_REAL_LOGO_URL;
-    const compBadge = `<img src="${proxyIcon(compBadgeUrl)}" alt="" style="width:100%;height:100%;object-fit:contain;" loading="lazy" crossorigin="anonymous" referrerpolicy="no-referrer" onerror="this.style.display='none';">`;
+    const compBadge = `<img class="uclchamp-comp-logo-img" src="${proxyIcon(compBadgeUrl)}" alt="" style="width:100%;height:100%;object-fit:contain;" loading="lazy" crossorigin="anonymous" referrerpolicy="no-referrer" onerror="this.style.display='none';">`;
     const clubBg = clubLogo ? `<img class="uclchamp-club-bg" src="${proxyIcon(clubLogo)}" alt="" loading="lazy" crossorigin="anonymous" referrerpolicy="no-referrer" onerror="this.remove();">` : '';
     return `<div class="uclchamp-fx">
       <div class="uclchamp-bg-gradient" style="background:linear-gradient(115deg, ${c1} 0%, ${c1} 46%, ${c2} 54%, ${c2} 100%);"></div>
