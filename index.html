@@ -1117,7 +1117,8 @@ html{ -webkit-print-color-adjust:exact; print-color-adjust:exact; color-adjust:e
      as either solid-black gradient artifacts or fully invisible particles. Same fix as pattern-layer:
      drop them for print and rely on the solid --acc border below. */
   .pcard .gem-facets, .pcard .refresh-fx, .pcard .legikone-fx, .pcard .wm26k-fx,
-  .pcard .breakout-fx, .pcard .goat-fx, .pcard .ogicon-fx, .pcard .iconpromo-fx{ display:none !important; }
+  .pcard .breakout-fx, .pcard .goat-fx, .pcard .ogicon-fx, .pcard .iconpromo-fx,
+  .pcard .iconswap2-fx, .pcard .uclchamp-fx{ display:none !important; }
   .pcard{ background-image:none !important; background-color:#12151b !important; }
   /* several foil themes fake a rainbow border via border:transparent + a
      gradient background-image clipped to border-box - now that backgrounds
@@ -2354,8 +2355,8 @@ function cardEl(card, sizeClass){
     const [c1,c2] = uclClubColors(card.club);
     const clubLogo = CLUB_LOGO[card.club] || card.clubImg;
     const compBadgeUrl = card.theme==='uelchamp' ? UEL_REAL_LOGO_URL : UCL_REAL_LOGO_URL;
-    const compBadge = `<img src="${proxyIcon(compBadgeUrl)}" alt="" style="width:100%;height:100%;object-fit:contain;" loading="lazy" referrerpolicy="no-referrer" onerror="this.style.display='none';">`;
-    const clubBg = clubLogo ? `<img class="uclchamp-club-bg" src="${proxyIcon(clubLogo)}" alt="" loading="lazy" referrerpolicy="no-referrer" onerror="this.remove();">` : '';
+    const compBadge = `<img src="${proxyIcon(compBadgeUrl)}" alt="" style="width:100%;height:100%;object-fit:contain;" loading="lazy" crossorigin="anonymous" referrerpolicy="no-referrer" onerror="this.style.display='none';">`;
+    const clubBg = clubLogo ? `<img class="uclchamp-club-bg" src="${proxyIcon(clubLogo)}" alt="" loading="lazy" crossorigin="anonymous" referrerpolicy="no-referrer" onerror="this.remove();">` : '';
     return `<div class="uclchamp-fx">
       <div class="uclchamp-bg-gradient" style="background:linear-gradient(115deg, ${c1} 0%, ${c1} 46%, ${c2} 54%, ${c2} 100%);"></div>
       ${clubBg}
