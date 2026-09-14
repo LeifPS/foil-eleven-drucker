@@ -2587,15 +2587,24 @@ function getFiltered(){
 //
 // A pure exponential can't shrink the low-60s share without also flattening/shrinking
 // everything above it (it's a monotonic curve pinned at 1.0 at the pool's lowest OV), so to
-// pull weight out of 60-69 and into 80-89 while leaving the 100+ tail exactly where it was,
-// this is now a Gamma-shaped curve instead: weight(ov) = (ov-minOv+1)^ALPHA * R^(ov-minOv).
-// The polynomial term ramps weight up through the low OVs (suppressing 60-69 relative to the
-// rest), the exponential term tapers it back down (still guaranteeing e.g. a 105 is rarer than
-// a 100, a 99 rarer than a 98 - anything past the peak decreases strictly per OV point), and
-// the two together peak around OV ~83. R is solved so 100+ lands at ~8% over a 9-card run,
-// same target as before.
-const RANDOM_PICK_ALPHA = 1.7;
-const RANDOM_PICK_DECAY = 0.9157;
+// pull weight out of 60-69 and into 80-89 while leaving the 100+ tail roughly where it was,
+// this is a Gamma-shaped curve instead: weight(ov) = (ov-minOv+1)^ALPHA * R^(ov-minOv). The
+// polynomial term ramps weight up through the low OVs (suppressing 60-69 relative to the rest),
+// the exponential term tapers it back down (still guaranteeing e.g. a 105 is rarer than a 100, a
+// 99 rarer than a 98 - anything past the peak decreases strictly per OV point), and the two
+// together peak around OV ~80.
+//
+// Originally this curve set each CARD's weight directly (weightOf(card) = f(card.ov)), which
+// meant a sync pulling in 187 new 90+ cards silently pushed the whole distribution's high end up
+// (more cards sharing that OV = more total weight there) - the odds drifted every time the pool
+// changed size/shape, with no code change at all. Fixed by weighting the OV LEVEL instead: f(ov)
+// is now a fixed budget for that exact rating, split evenly across however many cards currently
+// share it. Adding/removing cards only reshuffles who gets picked within their own rating - the
+// odds of landing on any given rating (and therefore any bucket) stay put regardless of pool
+// size, as long as the new cards don't introduce a rating that didn't exist in the pool before.
+// R/ALPHA re-solved against the post-sync pool so 100+ still lands at ~8% over a 9-card run.
+const RANDOM_PICK_ALPHA = 2.5;
+const RANDOM_PICK_DECAY = 0.7704;
 function pickRandomCards(n){
   // Trainer cards (isManager) don't fit a player-card print run, and any card without a real
   // photo would just print as a plain initials avatar - excluded from the random draw pool,
@@ -2603,9 +2612,12 @@ function pickRandomCards(n){
   const pool = getFiltered().filter(c=>!c.isManager && c.img);
   if(!pool.length) return;
   // Offset by the pool's lowest OV so the exponents stay small (avoids float underflow on a
-  // deep pool) without changing the *relative* weighting between any two cards.
+  // deep pool) without changing the *relative* weighting between any two OV levels.
   const minOv = Math.min(...pool.map(c=>c.ov));
-  const weightOf = c => Math.pow(c.ov - minOv + 1, RANDOM_PICK_ALPHA) * Math.pow(RANDOM_PICK_DECAY, c.ov - minOv);
+  const levelWeight = ov => Math.pow(ov - minOv + 1, RANDOM_PICK_ALPHA) * Math.pow(RANDOM_PICK_DECAY, ov - minOv);
+  const countByOv = new Map();
+  pool.forEach(c => countByOv.set(c.ov, (countByOv.get(c.ov)||0) + 1));
+  const weightOf = c => levelWeight(c.ov) / countByOv.get(c.ov);
   const remaining = pool.slice();
   const picked = [];
   while(picked.length<n && remaining.length>0){
