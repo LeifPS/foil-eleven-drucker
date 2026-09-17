@@ -28,8 +28,28 @@ input,select{font-family:'Inter',sans-serif;}
 .brand p{margin:2px 0 0;color:var(--muted);font-size:12px;}
 
 #app{max-width:1400px;margin:0 auto;padding:20px 20px 100px;}
+#app.has-odds{max-width:1680px;}
 #layout{display:grid;grid-template-columns:280px 1fr;gap:20px;align-items:start;}
+#layout.has-odds{grid-template-columns:280px 1fr 260px;}
 @media (max-width:900px) and (min-width:761px){ #layout{grid-template-columns:1fr;} #filters{position:static;} }
+@media (max-width:1180px){ #layout.has-odds{grid-template-columns:280px 1fr;} #odds-panel{display:none;} }
+
+/* Live odds panel (right column) - shows the current random-pick chances per rating bucket,
+   recomputed from the exact same pool/weighting pickRandomCards itself uses, so what's shown here
+   always matches what a real draw would do. Only shown once a filter narrows the pool (see
+   activeFilterCount() in updateOddsPanel) - with the full unfiltered catalog it'd just repeat the
+   same handful of numbers every time, adding noise without telling the player anything new. */
+#odds-panel{display:none;background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:16px;position:sticky;top:88px;max-height:calc(100vh - 110px);overflow-y:auto;}
+#layout.has-odds #odds-panel{display:block;}
+#odds-panel h3{margin:0 0 4px;font-size:15px;}
+#odds-panel .odds-sub{color:var(--muted);font-size:11.5px;margin:0 0 12px;line-height:1.4;}
+#odds-panel table{width:100%;border-collapse:collapse;font-size:12.5px;}
+#odds-panel th{text-align:right;color:var(--muted);font-weight:600;font-size:10.5px;text-transform:uppercase;letter-spacing:.02em;padding:0 0 6px;}
+#odds-panel th:first-child, #odds-panel td:first-child{text-align:left;}
+#odds-panel td{padding:5px 0;border-top:1px solid var(--line);text-align:right;font-variant-numeric:tabular-nums;}
+#odds-panel tr.odds-empty td{color:var(--muted);opacity:.5;}
+#odds-panel tr.odds-total td{border-top:1.5px solid var(--acc,var(--turf));font-weight:700;}
+#odds-panel .odds-bar{height:3px;border-radius:2px;background:var(--turf);margin-top:3px;opacity:.55;}
 
 /* Mobile-only toolbar (search/filter trigger row) and drawer backdrop - both inert and
    invisible above the 760px breakpoint, where the filters sidebar is just always visible. */
@@ -1223,6 +1243,12 @@ html{ -webkit-print-color-adjust:exact; print-color-adjust:exact; color-adjust:e
       <div id="results-area"></div>
       <div id="pagination"></div>
     </main>
+
+    <aside id="odds-panel">
+      <h3>🎲 Zufalls-Odds</h3>
+      <p class="odds-sub">Chancen für „Zufällig hinzufügen“ mit den aktuellen Filtern.</p>
+      <div id="odds-panel-body"></div>
+    </aside>
   </div>
 </div>
 
@@ -2510,6 +2536,9 @@ function init(){
     const n = Math.max(1, Math.min(500, parseInt(document.getElementById('random-count').value, 10) || 9));
     pickRandomCards(n);
   });
+  // Only the "≥1 bei N" column depends on this - a lightweight refresh instead of a full render()
+  // avoids re-rendering the whole card grid on every keystroke.
+  document.getElementById('random-count').addEventListener('input', updateOddsPanel);
   document.getElementById('print-btn').addEventListener('click', doPrint);
   document.getElementById('pdf-btn').addEventListener('click', generatePDF);
 
@@ -2611,10 +2640,10 @@ function pickRandomCards(n){
   // though both remain pickable by hand via the normal filters/grid.
   const pool = getFiltered().filter(c=>!c.isManager && c.img);
   if(!pool.length) return;
-  // Offset by the pool's lowest OV so the exponents stay small (avoids float underflow on a
-  // deep pool) without changing the *relative* weighting between any two OV levels.
-  const minOv = Math.min(...pool.map(c=>c.ov));
-  const levelWeight = ov => Math.pow(ov - minOv + 1, RANDOM_PICK_ALPHA) * Math.pow(RANDOM_PICK_DECAY, ov - minOv);
+  // levelWeightFn (defined below, alongside the odds panel that mirrors this exact same
+  // weighting) offsets by the pool's lowest OV so the exponents stay small (avoids float
+  // underflow on a deep pool) without changing the *relative* weighting between any two OV levels.
+  const levelWeight = levelWeightFn(pool);
   const countByOv = new Map();
   pool.forEach(c => countByOv.set(c.ov, (countByOv.get(c.ov)||0) + 1));
   const weightOf = c => levelWeight(c.ov) / countByOv.get(c.ov);
@@ -2670,6 +2699,70 @@ function render(){
   document.getElementById('pdf-btn').disabled = total===0;
   const thumbs = document.getElementById('tray-thumbs');
   thumbs.innerHTML = [...selection.values()].slice(0,20).map(s=>`<img src="${s.card.img||''}" title="${s.card.n} x${s.qty}">`).join('');
+
+  updateOddsPanel();
+}
+
+// Fixed display buckets for the odds panel - same ranges used throughout when discussing/tuning
+// RANDOM_PICK_ALPHA/DECAY. Buckets with zero cards in the current pool are left out entirely.
+const ODDS_DISPLAY_BUCKETS = [
+  {label:'≤69', lo:-Infinity, hi:69}, {label:'70–79', lo:70, hi:79}, {label:'80–89', lo:80, hi:89},
+  {label:'90–99', lo:90, hi:99}, {label:'100–104', lo:100, hi:104}, {label:'105–110', lo:105, hi:110},
+  {label:'111+', lo:111, hi:Infinity},
+];
+// Same per-OV-level weighting pickRandomCards uses (see its comment for why it's per-level, not
+// per-card) - factored out so the odds panel can never silently drift out of sync with the actual
+// draw logic.
+function levelWeightFn(pool){
+  const minOv = Math.min(...pool.map(c=>c.ov));
+  return ov => Math.pow(ov - minOv + 1, RANDOM_PICK_ALPHA) * Math.pow(RANDOM_PICK_DECAY, ov - minOv);
+}
+function computeOddsBuckets(pool){
+  if(!pool.length) return [];
+  const levelWeight = levelWeightFn(pool);
+  const distinctOv = [...new Set(pool.map(c=>c.ov))];
+  const total = distinctOv.reduce((a,v)=>a+levelWeight(v), 0);
+  if(!total) return [];
+  return ODDS_DISPLAY_BUCKETS.map(b=>{
+    const count = pool.filter(c=>c.ov>=b.lo && c.ov<=b.hi).length;
+    if(!count) return null;
+    const ovsInBucket = distinctOv.filter(v=>v>=b.lo && v<=b.hi);
+    const p = ovsInBucket.reduce((a,v)=>a+levelWeight(v), 0) / total;
+    return {label:b.label, count, p};
+  }).filter(Boolean);
+}
+function fmtPct(p){ return (p*100).toFixed(p*100<1 ? 2 : 1) + '%'; }
+// Only shown once a filter actually narrows the pool (see activeFilterCount) - against the full
+// unfiltered catalog this would just repeat the same numbers already covered when tuning the
+// curve, telling the player nothing new about the selection they just made.
+function updateOddsPanel(){
+  const active = activeFilterCount() > 0;
+  document.getElementById('layout').classList.toggle('has-odds', active);
+  document.getElementById('app').classList.toggle('has-odds', active);
+  if(!active) return;
+  const pool = getFiltered().filter(c=>!c.isManager && c.img);
+  const body = document.getElementById('odds-panel-body');
+  const buckets = computeOddsBuckets(pool);
+  if(!buckets.length){
+    body.innerHTML = `<p class="odds-sub" style="margin:0;">Keine druckbaren Karten in dieser Auswahl.</p>`;
+    return;
+  }
+  const n = Math.max(1, Math.min(500, parseInt(document.getElementById('random-count').value, 10) || 9));
+  const rows = buckets.map(b=>{
+    const pN = 1 - Math.pow(1-b.p, n);
+    return `<tr>
+      <td>${b.label}<div class="odds-bar" style="width:${Math.max(2, b.p*100)}%"></div></td>
+      <td>${b.count}</td>
+      <td>${fmtPct(b.p)}</td>
+      <td>${fmtPct(pN)}</td>
+    </tr>`;
+  }).join('');
+  body.innerHTML = `
+    <table>
+      <thead><tr><th>Rating</th><th>Karten</th><th>Je Zug</th><th>≥1 bei ${n}</th></tr></thead>
+      <tbody>${rows}</tbody>
+    </table>
+    <p class="odds-sub" style="margin:10px 0 0;">Pool: ${fmtNum(pool.length)} druckbare Karten.</p>`;
 }
 
 function renderGrid(area, items){
