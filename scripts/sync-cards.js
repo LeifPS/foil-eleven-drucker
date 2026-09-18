@@ -62,6 +62,7 @@ const VARIANT_TO_POOL = {
   siege_trophy: "Erfolge", liga_champion: "Erfolge", wep_trophy: "Erfolge",
   iconswap2: "Icon Swap: Remastered",
   ucl_champion: "Champions-League-Sieger", uel_champion: "Europa-League-Sieger",
+  toty: "TOTY",
   // deliberately excluded, matching source's own adminFullCardPool() catalog filter:
   //  - legacy/legacystar: source's own comment says these are "not yet in the index" -
   //    hidden:true/admin-test only, roster/photos not finalized.
